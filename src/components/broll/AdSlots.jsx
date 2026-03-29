@@ -10,13 +10,13 @@ export default function AdSlots() {
   const isVSL = creationMode === 'vsl';
 
   return (
-    <div className="ad-slots">
-      <div className="ad-slots-header">
-        <div className="ad-count-control">
+    <div className="video-slots">
+      <div className="video-slots-header">
+        <div className="variation-count-control">
           <label className="control-label" style={{ margin: 0 }}>
             {isVSL ? 'VSL Video Variations' : 'Number of Ads'}
           </label>
-          <div className="ad-count-input">
+          <div className="variation-count-input">
             <button
               className="btn btn-secondary btn-sm"
               onClick={() => setAdCount(Math.max(1, ads.length - 1))}
@@ -42,12 +42,12 @@ export default function AdSlots() {
         </div>
       </div>
 
-      <div className="ad-slots-list">
+      <div className="video-slots-list">
         <ErrorBoundary>
         {ads.map((ad, index) => (
-          <div key={ad.id} className={`ad-slot glass-card ${ad.status !== 'idle' ? `ad-status-${ad.status}` : ''}`}>
-            <div className="ad-slot-header">
-              <span className="ad-slot-number">
+          <div key={ad.id} className={`video-slot glass-card ${ad.status !== 'idle' ? `video-status-${ad.status}` : ''}`}>
+            <div className="video-slot-header">
+              <span className="video-slot-number">
                 {isVSL ? `Variation #${index + 1}` : `Ad #${index + 1}`}
               </span>
               <StatusBadge status={ad.status} progress={ad.progress} />
@@ -72,7 +72,7 @@ export default function AdSlots() {
             ) : (
               /* B-Roll or Hook+B-Roll — script textarea */
               <textarea
-                className="glass-input ad-script-input"
+                className="glass-input video-script-input"
                 value={ad.script}
                 onChange={(e) => updateAdScript(ad.id, e.target.value)}
                 placeholder={`Write voiceover script for Ad #${index + 1}...`}
@@ -93,7 +93,7 @@ export default function AdSlots() {
             )}
 
             {ad.voiceoverDuration > 0 && (
-              <div className="ad-voice-info">
+              <div className="video-voice-info">
                 <span>🎙️ {ad.voiceoverDuration.toFixed(1)}s voiceover</span>
               </div>
             )}
