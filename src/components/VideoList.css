@@ -1,0 +1,103 @@
+.video-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  overflow-y: auto;
+  max-height: calc(100vh - var(--header-height) - 220px);
+}
+
+.video-list-empty {
+  padding: 30px 20px;
+}
+
+.video-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  cursor: pointer;
+  position: relative;
+  animation: slideUp var(--transition-slow) ease-out both;
+}
+
+.video-item-selected {
+  border-color: var(--accent-primary) !important;
+  background: var(--accent-gradient-subtle) !important;
+  box-shadow: var(--accent-glow) !important;
+}
+
+.video-item-thumb {
+  position: relative;
+  width: 64px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--surface-3);
+}
+
+.video-item-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.video-item-thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+}
+
+.video-item-duration {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.video-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.video-item-name {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.video-item-meta {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.video-item-remove {
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.video-item:hover .video-item-remove {
+  opacity: 1;
+}
+
+.video-item-remove:hover {
+  color: var(--danger) !important;
+}

@@ -1,0 +1,135 @@
+.export-panel {
+  padding: 14px;
+}
+
+.export-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.export-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.export-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.export-mode-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-1);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+.export-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.export-info-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.export-value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.export-progress-section {
+  margin-bottom: 14px;
+  padding: 12px;
+  background: var(--surface-1);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+}
+
+.export-progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.export-percent {
+  font-weight: 600;
+  color: var(--accent-primary);
+}
+
+.export-video-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.export-video-item {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.export-video-item:last-child {
+  border-bottom: none;
+}
+
+.export-video-name {
+  font-size: 0.7rem;
+  color: var(--text-primary);
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.export-video-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.export-btn {
+  width: 100%;
+  padding: 12px 20px;
+  font-size: 0.875rem;
+  margin-top: 4px;
+}
+
+.export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.export-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.export-error-notice {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: rgba(245, 69, 92, 0.1);
+  border: 1px solid rgba(245, 69, 92, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--danger);
+}

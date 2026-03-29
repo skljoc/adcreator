@@ -1,0 +1,47 @@
+{
+  "name": "video-ads-editor",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Video Ads Editor — Add text overlays and export 1080p Meta ads",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "dist": "vite build && electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.videoadeditor.app",
+    "productName": "Video Ads Editor",
+    "mac": {
+      "category": "public.app-category.video",
+      "target": ["dmg", "zip"],
+      "icon": "public/icon.icns"
+    },
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ]
+  },
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.10",
+    "@ffmpeg/util": "^0.12.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2",
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
+    "vite": "^5.0.8",
+    "wait-on": "^7.2.0"
+  }
+}

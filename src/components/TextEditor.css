@@ -1,0 +1,136 @@
+.text-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* Mode Toggle */
+.editor-mode-toggle {
+  display: flex;
+  gap: 2px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.mode-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.mode-btn.active {
+  background: var(--accent-gradient-subtle);
+  color: var(--accent-primary);
+}
+
+.mode-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Background Style Toggle */
+.bg-style-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-secondary);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+/* Actions */
+.editor-actions {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--glass-border);
+  flex-wrap: wrap;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.7rem;
+}
+
+/* Notice */
+.editor-notice {
+  padding: 14px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+}
+
+/* Collapsible */
+.editor-collapsible {
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.editor-collapsible:last-child {
+  border-bottom: none;
+}
+
+/* Color Picker Row */
+.color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.color-hex {
+  max-width: 90px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.75rem !important;
+}
+
+/* Alignment Buttons */
+.align-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.align-buttons .btn {
+  flex: 1;
+  font-size: 1rem;
+}
+
+/* Nested Controls */
+.nested-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--surface-1);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+}
+
+/* Position Presets */
+.position-presets {
+  margin-top: 12px;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.preset-btn {
+  padding: 8px !important;
+  font-size: 1rem !important;
+  min-width: unset;
+}
