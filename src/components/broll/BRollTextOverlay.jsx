@@ -1,5 +1,28 @@
 import React, { useState, useCallback } from 'react';
-import { useBRoll, DEFAULT_TEXT_OVERLAY } from '../../context/BRollContext';
+import { useBRoll } from '../../context/BRollContext';
+
+const FALLBACK_TEXT_OVERLAY = {
+  text: '',
+  x: 50,
+  y: 50,
+  fontSize: 48,
+  fontFamily: 'Inter',
+  fontWeight: '700',
+  fontStyle: 'normal',
+  color: '#FFFFFF',
+  backgroundColor: 'transparent',
+  bgEnabled: false,
+  bgStyle: 'highlight',
+  backgroundPadding: 14,
+  borderRadius: 8,
+  textAlign: 'center',
+  letterSpacing: 0,
+  lineHeight: 1.3,
+  shadow: { enabled: false, color: '#000000', blur: 6, offsetX: 2, offsetY: 2 },
+  stroke: { enabled: false, color: '#000000', width: 2 },
+  opacity: 1,
+  rotation: 0,
+};
 
 const FONT_FAMILIES = [
   'Inter', 'Montserrat', 'Poppins', 'Oswald', 'Playfair Display',
@@ -42,7 +65,9 @@ export default function BRollTextOverlay({ adId, textOverlay, disabled = false }
     updateAdTextOverlay(adId, { [parent]: { [field]: value } });
   }, [adId, updateAdTextOverlay]);
 
-  const tc = textOverlay || DEFAULT_TEXT_OVERLAY;
+  const tc = textOverlay || FALLBACK_TEXT_OVERLAY;
+  const shadow = tc.shadow || FALLBACK_TEXT_OVERLAY.shadow;
+  const stroke = tc.stroke || FALLBACK_TEXT_OVERLAY.stroke;
   const hasText = tc.text && tc.text.trim();
 
   return (
@@ -281,19 +306,19 @@ export default function BRollTextOverlay({ adId, textOverlay, disabled = false }
                   <label className="toggle-switch">
                     <input
                       type="checkbox"
-                      checked={tc.shadow.enabled}
+                      checked={shadow.enabled}
                       onChange={(e) => updateNested('shadow', 'enabled', e.target.checked)}
                       disabled={disabled}
                     />
                     <span className="toggle-slider" />
                   </label>
                 </label>
-                {tc.shadow.enabled && (
+                {shadow.enabled && (
                   <div className="nested-controls">
                     <div className="color-picker-row">
                       <input
                         type="color"
-                        value={tc.shadow.color}
+                        value={shadow.color}
                         onChange={(e) => updateNested('shadow', 'color', e.target.value)}
                         disabled={disabled}
                       />
@@ -302,9 +327,9 @@ export default function BRollTextOverlay({ adId, textOverlay, disabled = false }
                     <div className="overlay-row">
                       <div className="overlay-col">
                         <label className="control-label">
-                          Blur <span className="value">{tc.shadow.blur}</span>
+                          Blur <span className="value">{shadow.blur}</span>
                         </label>
-                        <input type="range" min="0" max="30" value={tc.shadow.blur}
+                        <input type="range" min="0" max="30" value={shadow.blur}
                           onChange={(e) => updateNested('shadow', 'blur', Number(e.target.value))}
                           disabled={disabled}
                         />
@@ -313,18 +338,18 @@ export default function BRollTextOverlay({ adId, textOverlay, disabled = false }
                     <div className="overlay-row">
                       <div className="overlay-col">
                         <label className="control-label">
-                          X <span className="value">{tc.shadow.offsetX}</span>
+                          X <span className="value">{shadow.offsetX}</span>
                         </label>
-                        <input type="range" min="-20" max="20" value={tc.shadow.offsetX}
+                        <input type="range" min="-20" max="20" value={shadow.offsetX}
                           onChange={(e) => updateNested('shadow', 'offsetX', Number(e.target.value))}
                           disabled={disabled}
                         />
                       </div>
                       <div className="overlay-col">
                         <label className="control-label">
-                          Y <span className="value">{tc.shadow.offsetY}</span>
+                          Y <span className="value">{shadow.offsetY}</span>
                         </label>
-                        <input type="range" min="-20" max="20" value={tc.shadow.offsetY}
+                        <input type="range" min="-20" max="20" value={shadow.offsetY}
                           onChange={(e) => updateNested('shadow', 'offsetY', Number(e.target.value))}
                           disabled={disabled}
                         />
@@ -342,19 +367,19 @@ export default function BRollTextOverlay({ adId, textOverlay, disabled = false }
                   <label className="toggle-switch">
                     <input
                       type="checkbox"
-                      checked={tc.stroke.enabled}
+                      checked={stroke.enabled}
                       onChange={(e) => updateNested('stroke', 'enabled', e.target.checked)}
                       disabled={disabled}
                     />
                     <span className="toggle-slider" />
                   </label>
                 </label>
-                {tc.stroke.enabled && (
+                {stroke.enabled && (
                   <div className="nested-controls">
                     <div className="color-picker-row">
                       <input
                         type="color"
-                        value={tc.stroke.color}
+                        value={stroke.color}
                         onChange={(e) => updateNested('stroke', 'color', e.target.value)}
                         disabled={disabled}
                       />
@@ -362,9 +387,9 @@ export default function BRollTextOverlay({ adId, textOverlay, disabled = false }
                     </div>
                     <div className="overlay-col">
                       <label className="control-label">
-                        Width <span className="value">{tc.stroke.width}px</span>
+                        Width <span className="value">{stroke.width}px</span>
                       </label>
-                      <input type="range" min="1" max="10" value={tc.stroke.width}
+                      <input type="range" min="1" max="10" value={stroke.width}
                         onChange={(e) => updateNested('stroke', 'width', Number(e.target.value))}
                         disabled={disabled}
                       />
