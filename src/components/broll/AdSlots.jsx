@@ -2,6 +2,8 @@ import React from 'react';
 import { useBRoll } from '../../context/BRollContext';
 import BRollTextOverlay from './BRollTextOverlay';
 
+import { ErrorBoundary } from '../ErrorBoundary';
+
 export default function AdSlots() {
   const { ads, setAdCount, updateAdScript, creationMode, vslVideo } = useBRoll();
 
@@ -41,6 +43,7 @@ export default function AdSlots() {
       </div>
 
       <div className="ad-slots-list">
+        <ErrorBoundary>
         {ads.map((ad, index) => (
           <div key={ad.id} className={`ad-slot glass-card ${ad.status !== 'idle' ? `ad-status-${ad.status}` : ''}`}>
             <div className="ad-slot-header">
@@ -112,6 +115,7 @@ export default function AdSlots() {
             )}
           </div>
         ))}
+        </ErrorBoundary>
       </div>
     </div>
   );
