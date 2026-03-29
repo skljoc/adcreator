@@ -1,23 +1,88 @@
 /**
  * Video Assembler — combines B-roll clips with voiceover audio using FFmpeg.wasm
  * Supports 3 modes: B-Roll Only, Hook+B-Roll, and VSL Style
+ * All modes support optional text overlay compositing.
  */
 import { getFFmpeg } from './ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
+import { renderTextOverlay } from './canvas';
+
+/**
+ * Render a text overlay config to a PNG Uint8Array at the given dimensions.
+ */
+function renderOverlayPNG(textConfig, width, height) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, width, height);
+  renderTextOverlay(ctx, textConfig, width, height);
+  const dataURL = canvas.toDataURL('image/png');
+  const byteString = atob(dataURL.split(',')[1]);
+  const buffer = new Uint8Array(byteString.length);
+  for (let i = 0; i < byteString.length; i++) {
+    buffer[i] = byteString.charCodeAt(i);
+  }
+  return buffer;
+}
+
+/**
+ * Check if a textOverlay config has actual text to render.
+ */
+function hasTextOverlay(textOverlay) {
+  return textOverlay && textOverlay.text && textOverlay.text.trim().length > 0;
+}
+
+/**
+ * Apply text overlay to a video file using FFmpeg.
+ * Returns the output filename (either the original if no overlay, or a new composited file).
+ */
+async function applyTextOverlayToVideo(ff, inputFile, outputFile, textOverlay, outputWidth, outputHeight) {
+  if (!hasTextOverlay(textOverlay)) {
+    return inputFile; // no overlay needed
+  }
+
+  const overlayPNG = renderOverlayPNG(textOverlay, outputWidth, outputHeight);
+  await ff.writeFile('text_overlay.png', overlayPNG);
+
+  const exitCode = await ff.exec([
+    '-i', inputFile,
+    '-i', 'text_overlay.png',
+    '-filter_complex', '[0:v][1:v]overlay=0:0',
+    '-c:v', 'libx264',
+    '-preset', 'ultrafast',
+    '-crf', '23',
+    '-pix_fmt', 'yuv420p',
+    '-c:a', 'copy',
+    '-movflags', '+faststart',
+    '-y',
+    outputFile,
+  ]);
+
+  try { await ff.deleteFile('text_overlay.png'); } catch (e) { /* ignore */ }
+
+  if (exitCode !== 0) {
+    console.warn(`[Assembler] Text overlay compositing failed with code ${exitCode}, using video without overlay`);
+    return inputFile;
+  }
+
+  return outputFile;
+}
+
 
 /**
  * Assemble a video ad from B-roll segments + voiceover audio (original mode).
  *
  * @param {Array} segments — selected B-roll clips with { sourceFile, startTime, clipDuration }
  * @param {Blob} voiceoverBlob — MP3 audio blob from ElevenLabs
- * @param {object} options — { outputWidth, outputHeight }
+ * @param {object} options — { outputWidth, outputHeight, textOverlay }
  * @param {function} onProgress — progress callback
  * @returns {Uint8Array} — encoded MP4 data
  */
 export async function assembleAd(segments, voiceoverBlob, options = {}, onProgress = () => {}) {
   const ff = await getFFmpeg();
 
-  const { outputWidth = 1080, outputHeight = 1920 } = options;
+  const { outputWidth = 1080, outputHeight = 1920, textOverlay = null } = options;
 
   onProgress({ stage: 'loading', percent: 5, message: 'Loading source files...' });
 
@@ -64,7 +129,7 @@ export async function assembleAd(segments, voiceoverBlob, options = {}, onProgre
       clipFiles.push(clipName);
     }
 
-    const cutProgress = 15 + Math.round(((i + 1) / segments.length) * 40);
+    const cutProgress = 15 + Math.round(((i + 1) / segments.length) * 35);
     onProgress({ stage: 'cutting', percent: cutProgress, message: `Cut clip ${i + 1}/${segments.length}` });
   }
 
@@ -72,7 +137,7 @@ export async function assembleAd(segments, voiceoverBlob, options = {}, onProgre
     throw new Error('No clips were successfully cut');
   }
 
-  onProgress({ stage: 'assembling', percent: 60, message: 'Concatenating clips...' });
+  onProgress({ stage: 'assembling', percent: 55, message: 'Concatenating clips...' });
 
   // Write concat file list
   const concatContent = clipFiles.map(f => `file '${f}'`).join('\n');
@@ -93,15 +158,9 @@ export async function assembleAd(segments, voiceoverBlob, options = {}, onProgre
     throw new Error(`Concat failed with exit code ${exitCode}`);
   }
 
-  onProgress({ stage: 'merging', percent: 75, message: 'Merging video + voiceover...' });
+  onProgress({ stage: 'merging', percent: 65, message: 'Merging video + voiceover...' });
 
   // Merge concatenated video with voiceover audio
-  ff.on('progress', ({ progress }) => {
-    const pct = Math.max(0, Math.min(1, progress));
-    const percent = 75 + Math.round(pct * 20);
-    onProgress({ stage: 'merging', percent: Math.min(percent, 95), message: 'Encoding final video...' });
-  });
-
   exitCode = await ff.exec([
     '-i', 'concat_video.mp4',
     '-i', 'voiceover.mp3',
@@ -113,16 +172,25 @@ export async function assembleAd(segments, voiceoverBlob, options = {}, onProgre
     '-shortest',
     '-movflags', '+faststart',
     '-y',
-    'final_output.mp4',
+    'merged_output.mp4',
   ]);
 
   if (exitCode !== 0) {
     throw new Error(`Final merge failed with exit code ${exitCode}`);
   }
 
+  // Apply text overlay if configured
+  let finalFile = 'merged_output.mp4';
+  if (hasTextOverlay(textOverlay)) {
+    onProgress({ stage: 'overlay', percent: 85, message: 'Applying text overlay...' });
+    finalFile = await applyTextOverlayToVideo(ff, 'merged_output.mp4', 'final_output.mp4', textOverlay, outputWidth, outputHeight);
+  } else {
+    finalFile = 'merged_output.mp4';
+  }
+
   onProgress({ stage: 'finalizing', percent: 95, message: 'Reading output...' });
 
-  const data = await ff.readFile('final_output.mp4');
+  const data = await ff.readFile(finalFile);
 
   if (!data || data.length === 0) {
     throw new Error('Assembler produced empty output');
@@ -130,7 +198,7 @@ export async function assembleAd(segments, voiceoverBlob, options = {}, onProgre
 
   // Cleanup all temporary files
   const filesToClean = [
-    'voiceover.mp3', 'concat.txt', 'concat_video.mp4', 'final_output.mp4',
+    'voiceover.mp3', 'concat.txt', 'concat_video.mp4', 'merged_output.mp4', 'final_output.mp4',
     ...clipFiles,
     ...Array.from(sourceFileMap.values()),
   ];
@@ -152,13 +220,13 @@ export async function assembleAd(segments, voiceoverBlob, options = {}, onProgre
  * @param {object} hookSegment — { sourceFile, startTime, clipDuration }
  * @param {Array} brollSegments — B-roll clips
  * @param {Blob} voiceoverBlob — voiceover audio
- * @param {object} options — { outputWidth, outputHeight }
+ * @param {object} options — { outputWidth, outputHeight, textOverlay }
  * @param {function} onProgress — callback
  * @returns {Uint8Array}
  */
 export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlob, options = {}, onProgress = () => {}) {
   const ff = await getFFmpeg();
-  const { outputWidth = 1080, outputHeight = 1920 } = options;
+  const { outputWidth = 1080, outputHeight = 1920, textOverlay = null } = options;
 
   onProgress({ stage: 'loading', percent: 5, message: 'Loading source files...' });
 
@@ -229,11 +297,11 @@ export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlo
       clipFiles.push(clipName);
     }
 
-    const cutProgress = 15 + Math.round(((i + 1) / brollSegments.length) * 35);
+    const cutProgress = 15 + Math.round(((i + 1) / brollSegments.length) * 30);
     onProgress({ stage: 'cutting', percent: cutProgress, message: `Cut B-roll ${i + 1}/${brollSegments.length}` });
   }
 
-  onProgress({ stage: 'assembling', percent: 55, message: 'Concatenating clips...' });
+  onProgress({ stage: 'assembling', percent: 50, message: 'Concatenating clips...' });
 
   // Concatenate hook + b-roll clips
   const concatContent = clipFiles.map(f => `file '${f}'`).join('\n');
@@ -252,14 +320,9 @@ export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlo
     throw new Error(`Concat failed with exit code ${exitCode}`);
   }
 
-  onProgress({ stage: 'merging', percent: 70, message: 'Adding voiceover...' });
+  onProgress({ stage: 'merging', percent: 60, message: 'Adding voiceover...' });
 
   // Merge with voiceover (plays from the very beginning, over the hook)
-  ff.on('progress', ({ progress }) => {
-    const pct = Math.max(0, Math.min(1, progress));
-    onProgress({ stage: 'merging', percent: 70 + Math.round(pct * 25), message: 'Encoding final video...' });
-  });
-
   exitCode = await ff.exec([
     '-i', 'concat_video.mp4',
     '-i', 'voiceover.mp3',
@@ -271,22 +334,29 @@ export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlo
     '-shortest',
     '-movflags', '+faststart',
     '-y',
-    'final_output.mp4',
+    'merged_output.mp4',
   ]);
 
   if (exitCode !== 0) {
     throw new Error(`Final merge failed with exit code ${exitCode}`);
   }
 
+  // Apply text overlay if configured
+  let finalFile = 'merged_output.mp4';
+  if (hasTextOverlay(textOverlay)) {
+    onProgress({ stage: 'overlay', percent: 85, message: 'Applying text overlay...' });
+    finalFile = await applyTextOverlayToVideo(ff, 'merged_output.mp4', 'final_output.mp4', textOverlay, outputWidth, outputHeight);
+  }
+
   onProgress({ stage: 'finalizing', percent: 95, message: 'Reading output...' });
 
-  const data = await ff.readFile('final_output.mp4');
+  const data = await ff.readFile(finalFile);
   if (!data || data.length === 0) throw new Error('Assembler produced empty output');
 
   // Cleanup
   const filesToClean = [
     'voiceover.mp3', 'hook_src.mp4', hookClipName,
-    'concat.txt', 'concat_video.mp4', 'final_output.mp4',
+    'concat.txt', 'concat_video.mp4', 'merged_output.mp4', 'final_output.mp4',
     ...clipFiles.filter(f => f !== hookClipName),
     ...Array.from(sourceFileMap.values()),
   ];
@@ -308,13 +378,13 @@ export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlo
  * @param {File} vslFile — the main VSL video file (person talking)
  * @param {Array} brollSegments — B-roll clips for all b-roll slots
  * @param {Array} timeline — from buildVSLTimeline: [{ type, startTime, duration, brollCount }]
- * @param {object} options — { outputWidth, outputHeight }
+ * @param {object} options — { outputWidth, outputHeight, textOverlay }
  * @param {function} onProgress — callback
  * @returns {Uint8Array}
  */
 export async function assembleVSL(vslFile, brollSegments, timeline, options = {}, onProgress = () => {}) {
   const ff = await getFFmpeg();
-  const { outputWidth = 1080, outputHeight = 1920 } = options;
+  const { outputWidth = 1080, outputHeight = 1920, textOverlay = null } = options;
 
   onProgress({ stage: 'loading', percent: 5, message: 'Loading VSL and source files...' });
 
@@ -397,7 +467,7 @@ export async function assembleVSL(vslFile, brollSegments, timeline, options = {}
       }
     }
 
-    const cutProgress = 10 + Math.round((segCount / totalSegments) * 40);
+    const cutProgress = 10 + Math.round((segCount / totalSegments) * 35);
     onProgress({ stage: 'cutting', percent: cutProgress, message: `Processing segment ${segCount}/${totalSegments}` });
   }
 
@@ -405,7 +475,7 @@ export async function assembleVSL(vslFile, brollSegments, timeline, options = {}
     throw new Error('No video segments were successfully cut');
   }
 
-  onProgress({ stage: 'assembling', percent: 55, message: 'Concatenating interleaved clips...' });
+  onProgress({ stage: 'assembling', percent: 50, message: 'Concatenating interleaved clips...' });
 
   // Concatenate all clips in order
   const concatContent = clipFiles.map(f => `file '${f}'`).join('\n');
@@ -424,7 +494,7 @@ export async function assembleVSL(vslFile, brollSegments, timeline, options = {}
     throw new Error(`Concat failed with exit code ${exitCode}`);
   }
 
-  onProgress({ stage: 'merging', percent: 65, message: 'Extracting VSL audio...' });
+  onProgress({ stage: 'merging', percent: 60, message: 'Extracting VSL audio...' });
 
   // Extract full audio from VSL video
   exitCode = await ff.exec([
@@ -440,14 +510,9 @@ export async function assembleVSL(vslFile, brollSegments, timeline, options = {}
     throw new Error(`VSL audio extraction failed with exit code ${exitCode}`);
   }
 
-  onProgress({ stage: 'merging', percent: 75, message: 'Merging video with VSL audio...' });
+  onProgress({ stage: 'merging', percent: 70, message: 'Merging video with VSL audio...' });
 
   // Merge interleaved video with full VSL audio (audio plays continuously)
-  ff.on('progress', ({ progress }) => {
-    const pct = Math.max(0, Math.min(1, progress));
-    onProgress({ stage: 'merging', percent: 75 + Math.round(pct * 20), message: 'Encoding final video...' });
-  });
-
   exitCode = await ff.exec([
     '-i', 'concat_video.mp4',
     '-i', 'vsl_audio.aac',
@@ -459,22 +524,29 @@ export async function assembleVSL(vslFile, brollSegments, timeline, options = {}
     '-shortest',
     '-movflags', '+faststart',
     '-y',
-    'final_output.mp4',
+    'merged_output.mp4',
   ]);
 
   if (exitCode !== 0) {
     throw new Error(`Final merge failed with exit code ${exitCode}`);
   }
 
+  // Apply text overlay if configured
+  let finalFile = 'merged_output.mp4';
+  if (hasTextOverlay(textOverlay)) {
+    onProgress({ stage: 'overlay', percent: 85, message: 'Applying text overlay...' });
+    finalFile = await applyTextOverlayToVideo(ff, 'merged_output.mp4', 'final_output.mp4', textOverlay, outputWidth, outputHeight);
+  }
+
   onProgress({ stage: 'finalizing', percent: 95, message: 'Reading output...' });
 
-  const data = await ff.readFile('final_output.mp4');
+  const data = await ff.readFile(finalFile);
   if (!data || data.length === 0) throw new Error('Assembler produced empty output');
 
   // Cleanup
   const filesToClean = [
     'vsl_src.mp4', 'vsl_audio.aac',
-    'concat.txt', 'concat_video.mp4', 'final_output.mp4',
+    'concat.txt', 'concat_video.mp4', 'merged_output.mp4', 'final_output.mp4',
     ...clipFiles,
     ...Array.from(sourceFileMap.values()),
   ];

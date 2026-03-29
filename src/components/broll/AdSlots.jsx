@@ -1,5 +1,6 @@
 import React from 'react';
 import { useBRoll } from '../../context/BRollContext';
+import BRollTextOverlay from './BRollTextOverlay';
 
 export default function AdSlots() {
   const { ads, setAdCount, updateAdScript, creationMode, vslVideo } = useBRoll();
@@ -9,61 +10,34 @@ export default function AdSlots() {
   return (
     <div className="ad-slots">
       <div className="ad-slots-header">
-        {isVSL ? (
-          <div className="ad-count-control">
-            <label className="control-label" style={{ margin: 0 }}>VSL Video Variations</label>
-            <div className="ad-count-input">
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => setAdCount(Math.max(1, ads.length - 1))}
-                disabled={ads.length <= 1}
-              >−</button>
-              <input
-                type="number"
-                className="glass-input"
-                value={ads.length}
-                min={1}
-                max={50}
-                onChange={(e) => {
-                  const val = Math.max(1, Math.min(50, parseInt(e.target.value) || 1));
-                  setAdCount(val);
-                }}
-                style={{ width: '60px', textAlign: 'center' }}
-              />
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => setAdCount(Math.min(50, ads.length + 1))}
-              >+</button>
-            </div>
+        <div className="ad-count-control">
+          <label className="control-label" style={{ margin: 0 }}>
+            {isVSL ? 'VSL Video Variations' : 'Number of Ads'}
+          </label>
+          <div className="ad-count-input">
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => setAdCount(Math.max(1, ads.length - 1))}
+              disabled={ads.length <= 1}
+            >−</button>
+            <input
+              type="number"
+              className="glass-input"
+              value={ads.length}
+              min={1}
+              max={50}
+              onChange={(e) => {
+                const val = Math.max(1, Math.min(50, parseInt(e.target.value) || 1));
+                setAdCount(val);
+              }}
+              style={{ width: '60px', textAlign: 'center' }}
+            />
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => setAdCount(Math.min(50, ads.length + 1))}
+            >+</button>
           </div>
-        ) : (
-          <div className="ad-count-control">
-            <label className="control-label" style={{ margin: 0 }}>Number of Ads</label>
-            <div className="ad-count-input">
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => setAdCount(Math.max(1, ads.length - 1))}
-                disabled={ads.length <= 1}
-              >−</button>
-              <input
-                type="number"
-                className="glass-input"
-                value={ads.length}
-                min={1}
-                max={50}
-                onChange={(e) => {
-                  const val = Math.max(1, Math.min(50, parseInt(e.target.value) || 1));
-                  setAdCount(val);
-                }}
-                style={{ width: '60px', textAlign: 'center' }}
-              />
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => setAdCount(Math.min(50, ads.length + 1))}
-              >+</button>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
       <div className="ad-slots-list">
@@ -103,6 +77,13 @@ export default function AdSlots() {
                 disabled={ad.status !== 'idle' && ad.status !== 'error'}
               />
             )}
+
+            {/* Text Overlay — available in all modes */}
+            <BRollTextOverlay
+              adId={ad.id}
+              textOverlay={ad.textOverlay}
+              disabled={ad.status !== 'idle' && ad.status !== 'error'}
+            />
 
             {ad.error && (
               <div className="ad-error">⚠️ {ad.error}</div>

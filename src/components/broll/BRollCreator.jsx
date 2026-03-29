@@ -94,12 +94,13 @@ export default function BRollCreator() {
 
         updateAd(ad.id, { status: 'assembling', progress: 40 });
         addLog(`Assembling video...`);
+        if (ad.textOverlay?.text?.trim()) addLog(`  📝 Text overlay: "${ad.textOverlay.text.trim()}"`);
 
         const firstSource = analyzedSources[0];
         const outputWidth = firstSource.width < firstSource.height ? 1080 : 1920;
         const outputHeight = firstSource.width < firstSource.height ? 1920 : 1080;
 
-        const videoData = await assembleAd(segments, voiceBlob, { outputWidth, outputHeight }, (prog) => {
+        const videoData = await assembleAd(segments, voiceBlob, { outputWidth, outputHeight, textOverlay: ad.textOverlay }, (prog) => {
           updateAd(ad.id, { progress: 40 + Math.round(prog.percent * 0.55) });
         });
 
@@ -175,12 +176,13 @@ export default function BRollCreator() {
         // Assemble
         updateAd(ad.id, { status: 'assembling', progress: 40 });
         addLog(`Assembling Hook+B-Roll video...`);
+        if (ad.textOverlay?.text?.trim()) addLog(`  📝 Text overlay: "${ad.textOverlay.text.trim()}"`);
 
         const firstSource = analyzedSources[0];
         const outputWidth = firstSource.width < firstSource.height ? 1080 : 1920;
         const outputHeight = firstSource.width < firstSource.height ? 1920 : 1080;
 
-        const videoData = await assembleHookBRoll(hookClip, brollSegments, voiceBlob, { outputWidth, outputHeight }, (prog) => {
+        const videoData = await assembleHookBRoll(hookClip, brollSegments, voiceBlob, { outputWidth, outputHeight, textOverlay: ad.textOverlay }, (prog) => {
           updateAd(ad.id, { progress: 40 + Math.round(prog.percent * 0.55) });
         });
 
@@ -269,11 +271,12 @@ export default function BRollCreator() {
         // Assemble VSL
         updateAd(ad.id, { status: 'assembling', progress: 35 });
         addLog(`Assembling VSL interleaved video...`);
+        if (ad.textOverlay?.text?.trim()) addLog(`  📝 Text overlay: "${ad.textOverlay.text.trim()}"`);
 
         const outputWidth = vslVideo.width < vslVideo.height ? 1080 : 1920;
         const outputHeight = vslVideo.width < vslVideo.height ? 1920 : 1080;
 
-        const videoData = await assembleVSL(vslVideo.file, brollSegments, timeline, { outputWidth, outputHeight }, (prog) => {
+        const videoData = await assembleVSL(vslVideo.file, brollSegments, timeline, { outputWidth, outputHeight, textOverlay: ad.textOverlay }, (prog) => {
           updateAd(ad.id, { progress: 35 + Math.round(prog.percent * 0.60) });
         });
 

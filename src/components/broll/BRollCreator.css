@@ -463,6 +463,144 @@
   white-space: pre-wrap;
 }
 
+/* --- Text Overlay Component --- */
+.broll-text-overlay {
+  margin-top: 10px;
+}
+
+.overlay-title-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.overlay-title-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+}
+
+.overlay-options {
+  margin-top: 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  overflow: hidden;
+}
+
+.overlay-mini-section {
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.overlay-mini-section:last-child {
+  border-bottom: none;
+}
+
+.overlay-mini-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.overlay-mini-header:hover {
+  background: var(--surface-2);
+}
+
+.overlay-mini-body {
+  padding: 6px 10px 10px;
+}
+
+.overlay-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+  align-items: flex-start;
+}
+
+.overlay-row:last-child {
+  margin-bottom: 0;
+}
+
+.overlay-col {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Override slider/input sizing inside overlay context */
+.overlay-options .control-label {
+  font-size: 0.6875rem;
+  margin-bottom: 2px;
+}
+
+.overlay-options .glass-input {
+  font-size: 0.75rem;
+  padding: 4px 8px;
+}
+
+.overlay-options input[type="range"] {
+  height: 4px;
+}
+
+.overlay-options .color-picker-row {
+  gap: 6px;
+}
+
+.overlay-options .color-picker-row input[type="color"] {
+  width: 28px;
+  height: 28px;
+}
+
+.overlay-options .align-buttons {
+  display: flex;
+  gap: 3px;
+}
+
+.overlay-options .align-buttons .btn {
+  flex: 1;
+  padding: 4px;
+  font-size: 0.875rem;
+  min-width: unset;
+}
+
+.overlay-options .nested-controls {
+  padding: 6px 8px;
+  margin-top: 6px;
+  gap: 6px;
+}
+
+.overlay-options .preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.overlay-options .preset-btn {
+  padding: 5px !important;
+  font-size: 0.875rem !important;
+  min-width: unset;
+}
+
+.overlay-options .bg-style-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-secondary);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+.overlay-options .toggle-switch {
+  transform: scale(0.85);
+}
+
 /* --- Responsive --- */
 @media (max-width: 1200px) {
   .broll-creator {

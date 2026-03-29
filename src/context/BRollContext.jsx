@@ -2,6 +2,29 @@ import React, { createContext, useContext, useReducer, useCallback } from 'react
 
 const BRollContext = createContext();
 
+export const DEFAULT_TEXT_OVERLAY = {
+  text: '',
+  x: 50,
+  y: 50,
+  fontSize: 48,
+  fontFamily: 'Inter',
+  fontWeight: '700',
+  fontStyle: 'normal',
+  color: '#FFFFFF',
+  backgroundColor: 'transparent',
+  bgEnabled: false,
+  bgStyle: 'highlight',
+  backgroundPadding: 14,
+  borderRadius: 8,
+  textAlign: 'center',
+  letterSpacing: 0,
+  lineHeight: 1.3,
+  shadow: { enabled: false, color: '#000000', blur: 6, offsetX: 2, offsetY: 2 },
+  stroke: { enabled: false, color: '#000000', width: 2 },
+  opacity: 1,
+  rotation: 0,
+};
+
 const initialState = {
   // Creation mode: 'broll' | 'hook-broll' | 'vsl'
   creationMode: 'broll',
@@ -107,6 +130,7 @@ function reducer(state, action) {
             id: crypto.randomUUID(),
             index: i,
             script: '',
+            textOverlay: { ...DEFAULT_TEXT_OVERLAY },
             voiceoverBlob: null,
             voiceoverUrl: null,
             voiceoverDuration: 0,
@@ -137,6 +161,26 @@ function reducer(state, action) {
         ads: state.ads.map(ad =>
           ad.id === adId ? { ...ad, ...updates } : ad
         ),
+      };
+    }
+
+    case 'UPDATE_AD_TEXT_OVERLAY': {
+      const { adId, updates } = action.payload;
+      return {
+        ...state,
+        ads: state.ads.map(ad => {
+          if (ad.id !== adId) return ad;
+          const current = ad.textOverlay || { ...DEFAULT_TEXT_OVERLAY };
+          const merged = { ...current };
+          for (const [key, value] of Object.entries(updates)) {
+            if (typeof value === 'object' && value !== null && !Array.isArray(value) && typeof current[key] === 'object') {
+              merged[key] = { ...current[key], ...value };
+            } else {
+              merged[key] = value;
+            }
+          }
+          return { ...ad, textOverlay: merged };
+        }),
       };
     }
 
@@ -191,6 +235,7 @@ export function BRollProvider({ children }) {
   const setAdCount = useCallback((count) => dispatch({ type: 'SET_AD_COUNT', payload: count }), []);
   const updateAdScript = useCallback((adId, script) => dispatch({ type: 'UPDATE_AD_SCRIPT', payload: { adId, script } }), []);
   const updateAd = useCallback((adId, updates) => dispatch({ type: 'UPDATE_AD', payload: { adId, updates } }), []);
+  const updateAdTextOverlay = useCallback((adId, updates) => dispatch({ type: 'UPDATE_AD_TEXT_OVERLAY', payload: { adId, updates } }), []);
   const updateSettings = useCallback((updates) => dispatch({ type: 'UPDATE_SETTINGS', payload: updates }), []);
   const setGenerating = useCallback((val) => dispatch({ type: 'SET_GENERATING', payload: val }), []);
   const addLog = useCallback((msg) => dispatch({ type: 'ADD_LOG', payload: msg }), []);
@@ -204,7 +249,7 @@ export function BRollProvider({ children }) {
       addSources, removeSource, setScenes,
       addHookSources, removeHookSource,
       setVslVideo, removeVslVideo,
-      setAdCount, updateAdScript, updateAd,
+      setAdCount, updateAdScript, updateAd, updateAdTextOverlay,
       updateSettings, setGenerating, addLog, clearLog, resetAds,
     }}>
       {children}
