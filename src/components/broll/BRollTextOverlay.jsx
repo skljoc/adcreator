@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { useBRoll } from '../../context/BRollContext';
+import { useBRoll, DEFAULT_TEXT_OVERLAY } from '../../context/BRollContext';
 
 const FONT_FAMILIES = [
   'Inter', 'Montserrat', 'Poppins', 'Oswald', 'Playfair Display',
@@ -42,7 +42,7 @@ export default function BRollTextOverlay({ adId, textOverlay, disabled = false }
     updateAdTextOverlay(adId, { [parent]: { [field]: value } });
   }, [adId, updateAdTextOverlay]);
 
-  const tc = textOverlay;
+  const tc = textOverlay || DEFAULT_TEXT_OVERLAY;
   const hasText = tc.text && tc.text.trim();
 
   return (
