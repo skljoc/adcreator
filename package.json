@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "dist": "vite build && electron-builder --mac"
+    "dist": "vite build && electron-builder --mac",
+    "dist:win": "vite build && electron-builder --win"
   },
   "build": {
     "appId": "com.videoadeditor.app",
@@ -20,6 +21,10 @@
         "dmg",
         "zip"
       ],
+      "icon": "public/icon.png"
+    },
+    "win": {
+      "target": ["nsis"],
       "icon": "public/icon.png"
     },
     "directories": {
