@@ -59,6 +59,7 @@ app.on('window-all-closed', () => {
 });
 
 const { machineIdSync } = require('node-machine-id');
+const os = require('os');
 
 // IPC: Save exported video file via native dialog
 ipcMain.handle('save-file', async (event, { buffer, filename }) => {
@@ -81,5 +82,22 @@ ipcMain.handle('get-machine-id', () => {
   } catch (e) {
     console.error('Failed to get machine ID:', e);
     return 'fallback-id-error';
+  }
+});
+
+// IPC: Get OS metadata
+ipcMain.handle('get-device-info', () => {
+  try {
+    const isMacBook = os.hostname().toLowerCase().includes('book') || os.cpus()[0].model.toLowerCase().includes('book');
+    return {
+      os: `${os.type()} ${os.release()} (${os.arch()})`,
+      username: os.userInfo().username,
+      hostname: os.hostname(),
+      cpu: os.cpus()[0].model,
+      device_type: isMacBook ? 'Laptop' : 'Desktop/Unknown'
+    };
+  } catch (e) {
+    console.error('Failed to get device info:', e);
+    return { error: e.message };
   }
 });

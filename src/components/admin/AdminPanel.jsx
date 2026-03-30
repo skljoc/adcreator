@@ -137,7 +137,19 @@ export default function AdminPanel() {
                 </td>
                 <td style={{ padding: '1rem' }}>
                   {lic.device_id ? (
-                    <span style={{ fontSize: '0.8rem', opacity: 0.8 }} title={lic.device_id}>Yes (ID Bound)</span>
+                    <div style={{ fontSize: '0.85rem' }}>
+                      <div style={{ fontWeight: 'bold' }}>Bound: {new Date(lic.activated_at).toLocaleDateString()}</div>
+                      {lic.device_info && (
+                        <div style={{ marginTop: '0.4rem', opacity: 0.85 }}>
+                          <div><strong>IP:</strong> {lic.device_info.ip}</div>
+                          <div><strong>User:</strong> {lic.device_info.username}</div>
+                          <div><strong>OS:</strong> {lic.device_info.os}</div>
+                          <div><strong>Type:</strong> {lic.device_info.device_type}</div>
+                          {lic.device_info.cpu && <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '0.2rem' }}>{lic.device_info.cpu}</div>}
+                        </div>
+                      )}
+                      {!lic.device_info && <div style={{ opacity: 0.6, marginTop: '0.2rem' }} title={lic.device_id}>ID: *{lic.device_id.substr(-6)}</div>}
+                    </div>
                   ) : <span style={{ opacity: 0.5 }}>Unbound</span>}
                 </td>
                 <td style={{ padding: '1rem', display: 'flex', gap: '0.5rem' }}>

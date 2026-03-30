@@ -5,6 +5,7 @@ CREATE TABLE licenses (
   license_key text UNIQUE NOT NULL,
   customer_name text,
   device_id text,
+  device_info jsonb,
   is_active boolean DEFAULT true,
   created_at timestamp with time zone DEFAULT now(),
   activated_at timestamp with time zone

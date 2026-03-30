@@ -58,9 +58,36 @@ export default function LicenseWrapper({ children }) {
 
       // If no device_id bound yet, bind it now!
       if (!data.device_id) {
+        let ipInfo = 'Unknown IP';
+        try {
+          const res = await fetch('https://api.ipify.org?format=json');
+          if (res.ok) {
+            const ipData = await res.json();
+            ipInfo = ipData.ip;
+          }
+        } catch (e) {
+          console.warn('Could not fetch IP', e);
+        }
+
+        let sysInfo = {};
+        if (window.electronAPI?.getDeviceInfo) {
+          sysInfo = await window.electronAPI.getDeviceInfo();
+        } else {
+          sysInfo = { os: navigator.userAgent.slice(0, 50), device_type: 'Browser' };
+        }
+
+        const deviceInfo = {
+          ip: ipInfo,
+          ...sysInfo
+        };
+
         const { error: updateError } = await supabase
           .from('licenses')
-          .update({ device_id: machineId, activated_at: new Date().toISOString() })
+          .update({ 
+            device_id: machineId, 
+            device_info: deviceInfo,
+            activated_at: new Date().toISOString() 
+          })
           .eq('license_key', savedKey)
           // RLS check ensures it wasn't bound in the meantime
           .is('device_id', null);
