@@ -61,8 +61,6 @@ app.on('window-all-closed', () => {
 const { machineIdSync } = require('node-machine-id');
 const os = require('os');
 
-const fs = require('fs');
-
 // IPC: Select directory
 ipcMain.handle('select-directory', async () => {
   const result = await dialog.showOpenDialog({
