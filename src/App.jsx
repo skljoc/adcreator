@@ -7,6 +7,9 @@ import ExportPanel from './components/ExportPanel';
 import ThemeToggle from './components/ThemeToggle';
 import BRollCreator from './components/broll/BRollCreator';
 import { useVideos } from './context/VideoContext';
+import { HashRouter, Routes, Route } from 'react-router-dom';
+import LicenseWrapper from './components/auth/LicenseWrapper';
+import AdminPanel from './components/admin/AdminPanel';
 import './App.css';
 
 const TABS = [
@@ -15,6 +18,21 @@ const TABS = [
 ];
 
 export default function App() {
+  return (
+    <HashRouter>
+      <Routes>
+        <Route path="/" element={
+          <LicenseWrapper>
+            <EditorApp />
+          </LicenseWrapper>
+        } />
+        <Route path="/admin" element={<AdminPanel />} />
+      </Routes>
+    </HashRouter>
+  );
+}
+
+function EditorApp() {
   const { videos } = useVideos();
   const hasVideos = videos.length > 0;
   const [activeTab, setActiveTab] = useState('overlay');

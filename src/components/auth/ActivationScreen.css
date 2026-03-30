@@ -1,0 +1,36 @@
+.activation-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  width: 100vw;
+  background-color: var(--bg-color);
+  background-image: radial-gradient(circle at 50% 10%, rgba(99, 102, 241, 0.1), transparent 50%),
+                    radial-gradient(circle at 10% 90%, rgba(139, 92, 246, 0.1), transparent 50%);
+}
+
+.activation-card {
+  width: 100%;
+  max-width: 450px;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+.activation-card h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.activation-card p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin-bottom: 1rem;
+}

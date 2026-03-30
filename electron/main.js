@@ -58,6 +58,8 @@ app.on('window-all-closed', () => {
   }
 });
 
+const { machineIdSync } = require('node-machine-id');
+
 // IPC: Save exported video file via native dialog
 ipcMain.handle('save-file', async (event, { buffer, filename }) => {
   const result = await dialog.showSaveDialog({
@@ -70,4 +72,14 @@ ipcMain.handle('save-file', async (event, { buffer, filename }) => {
     return { success: true, path: result.filePath };
   }
   return { success: false };
+});
+
+// IPC: Get hardware machine ID for licensing
+ipcMain.handle('get-machine-id', () => {
+  try {
+    return machineIdSync();
+  } catch (e) {
+    console.error('Failed to get machine ID:', e);
+    return 'fallback-id-error';
+  }
 });
