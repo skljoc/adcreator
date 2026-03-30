@@ -20,7 +20,7 @@
         "dmg",
         "zip"
       ],
-      "icon": "public/icon.icns"
+      "icon": "public/icon.png"
     },
     "directories": {
       "output": "release"
@@ -28,7 +28,8 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "package.json"
+      "package.json",
+      "node_modules/**/*"
     ]
   },
   "dependencies": {

@@ -39,13 +39,19 @@ function EditorApp() {
 
   return (
     <div className="app">
-      {/* Header */}
       <header className="app-header glass-panel drag-handle">
-        <div className="header-left no-drag">
-          <div className="header-logo">
+        <div className="header-left no-drag" style={{ flex: 1 }}>
+          {/* Empty struct for flex balance */}
+        </div>
+
+        <div className="header-center no-drag" style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+          <div className="header-logo" style={{ cursor: 'default' }}>
             <span className="logo-icon">🎬</span>
             <h1 className="logo-text">Video Ads Editor</h1>
           </div>
+        </div>
+
+        <div className="header-right no-drag" style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: '16px' }}>
           {/* Tab Navigation */}
           <nav className="header-tabs">
             {TABS.map(tab => (
@@ -58,8 +64,6 @@ function EditorApp() {
               </button>
             ))}
           </nav>
-        </div>
-        <div className="header-right no-drag">
           <ThemeToggle />
         </div>
       </header>
