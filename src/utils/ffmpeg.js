@@ -217,11 +217,21 @@ export async function downloadFile(data, filename) {
 }
 
 /**
+ * Select a directory using Electron native dialog if available
+ */
+export async function selectDirectory() {
+  if (window.electronAPI?.selectDirectory) {
+    return await window.electronAPI.selectDirectory();
+  }
+  return { success: false };
+}
+
+/**
  * Save file using Electron native dialog if available, otherwise download
  */
-export async function saveFile(data, filename) {
+export async function saveFile(data, filename, directory = null) {
   if (window.electronAPI?.isElectron) {
-    const result = await window.electronAPI.saveFile(Array.from(data), filename);
+    const result = await window.electronAPI.saveFile(Array.from(data), filename, directory);
     return result;
   } else {
     await downloadFile(data, filename);

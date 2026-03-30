@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useVideos } from '../context/VideoContext';
-import { exportVideo, saveFile } from '../utils/ffmpeg';
+import { exportVideo, saveFile, selectDirectory } from '../utils/ffmpeg';
 import './ExportPanel.css';
 
 export default function ExportPanel() {
@@ -18,6 +18,16 @@ export default function ExportPanel() {
       : (selectedVideo ? [selectedVideo] : []);
 
     if (videosToExport.length === 0) return;
+
+    let selectedDir = null;
+    if (window.electronAPI?.isElectron) {
+      const dirResult = await selectDirectory();
+      if (!dirResult.success || !dirResult.path) {
+        // User cancelled directory selection
+        return;
+      }
+      selectedDir = dirResult.path;
+    }
 
     setExporting(true);
     clearExportProgress();
@@ -38,7 +48,7 @@ export default function ExportPanel() {
         const baseName = video.name.replace(/\.[^.]+$/, '');
         const outputName = `${baseName}_1080p.mp4`;
 
-        await saveFile(data, outputName);
+        await saveFile(data, outputName, selectedDir);
       } catch (err) {
         console.error(`Export failed for ${video.name}:`, err);
         setExportProgress(video.id, { stage: 'error', percent: 0, error: err.message });

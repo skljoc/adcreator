@@ -61,18 +61,36 @@ app.on('window-all-closed', () => {
 const { machineIdSync } = require('node-machine-id');
 const os = require('os');
 
-// IPC: Save exported video file via native dialog
-ipcMain.handle('save-file', async (event, { buffer, filename }) => {
-  const result = await dialog.showSaveDialog({
-    defaultPath: filename,
-    filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
-  });
+const fs = require('fs');
 
-  if (!result.canceled && result.filePath) {
-    fs.writeFileSync(result.filePath, Buffer.from(buffer));
-    return { success: true, path: result.filePath };
+// IPC: Select directory
+ipcMain.handle('select-directory', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (!result.canceled && result.filePaths.length > 0) {
+    return { success: true, path: result.filePaths[0] };
   }
   return { success: false };
+});
+
+// IPC: Save exported video file via native dialog or direct to dir
+ipcMain.handle('save-file', async (event, { buffer, filename, directory }) => {
+  let filePath;
+
+  if (directory) {
+    filePath = require('path').join(directory, filename);
+  } else {
+    const result = await dialog.showSaveDialog({
+      defaultPath: filename,
+      filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
+    });
+    if (result.canceled || !result.filePath) return { success: false };
+    filePath = result.filePath;
+  }
+
+  fs.writeFileSync(filePath, Buffer.from(buffer));
+  return { success: true, path: filePath };
 });
 
 // IPC: Get hardware machine ID for licensing
