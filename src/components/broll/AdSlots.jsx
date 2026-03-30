@@ -1,6 +1,7 @@
 import React from 'react';
 import { useBRoll } from '../../context/BRollContext';
 import BRollTextOverlay from './BRollTextOverlay';
+import CaptionsSettings from './CaptionsSettings';
 
 import { ErrorBoundary } from '../ErrorBoundary';
 
@@ -88,6 +89,14 @@ export default function AdSlots() {
               disabled={ad.status !== 'idle' && ad.status !== 'error'}
             />
 
+            {/* CapCut Auto-Captions — only relevant if there's voiceover (b-roll and hook-broll mode) */}
+            {!isVSL && (
+              <CaptionsSettings
+                adId={ad.id}
+                captionsConfig={ad.captionsConfig}
+                disabled={ad.status !== 'idle' && ad.status !== 'error'}
+              />
+            )}
             {ad.error && (
               <div className="ad-error">⚠️ {ad.error}</div>
             )}

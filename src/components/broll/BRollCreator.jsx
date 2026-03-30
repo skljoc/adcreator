@@ -81,10 +81,10 @@ export default function BRollCreator() {
       try {
         updateAd(ad.id, { status: 'generating-voice', progress: 10 });
         addLog(`Generating voiceover...`);
-        const voiceBlob = await generateSpeech(settings.apiKey, settings.voiceId, ad.script);
+        const { blob: voiceBlob, wordTimings } = await generateSpeech(settings.apiKey, settings.voiceId, ad.script);
         const duration = await getAudioDuration(voiceBlob);
         const voiceoverUrl = URL.createObjectURL(voiceBlob);
-        updateAd(ad.id, { voiceoverBlob: voiceBlob, voiceoverUrl, voiceoverDuration: duration, progress: 25 });
+        updateAd(ad.id, { voiceoverBlob: voiceBlob, voiceoverUrl, voiceoverDuration: duration, captionTimings: wordTimings, progress: 25 });
         addLog(`✅ Voiceover generated (${duration.toFixed(1)}s)`);
 
         updateAd(ad.id, { status: 'analyzing', progress: 30 });
@@ -155,10 +155,10 @@ export default function BRollCreator() {
         // Generate voiceover
         updateAd(ad.id, { status: 'generating-voice', progress: 10 });
         addLog(`Generating voiceover...`);
-        const voiceBlob = await generateSpeech(settings.apiKey, settings.voiceId, ad.script);
+        const { blob: voiceBlob, wordTimings } = await generateSpeech(settings.apiKey, settings.voiceId, ad.script);
         const duration = await getAudioDuration(voiceBlob);
         const voiceoverUrl = URL.createObjectURL(voiceBlob);
-        updateAd(ad.id, { voiceoverBlob: voiceBlob, voiceoverUrl, voiceoverDuration: duration, progress: 25 });
+        updateAd(ad.id, { voiceoverBlob: voiceBlob, voiceoverUrl, voiceoverDuration: duration, captionTimings: wordTimings, progress: 25 });
         addLog(`✅ Voiceover generated (${duration.toFixed(1)}s)`);
 
         // Select hook clip

@@ -6,6 +6,7 @@
 import { getFFmpeg } from './ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
 import { renderTextOverlay } from './canvas';
+import { generateASS } from './subtitles';
 
 /**
  * Render a text overlay config to a PNG Uint8Array at the given dimensions.
@@ -34,21 +35,63 @@ function hasTextOverlay(textOverlay) {
 }
 
 /**
- * Apply text overlay to a video file using FFmpeg.
- * Returns the output filename (either the original if no overlay, or a new composited file).
+ * Apply text overlays and/or ASS subtitles to a video file using FFmpeg.
+ * Returns the output filename.
  */
-async function applyTextOverlayToVideo(ff, inputFile, outputFile, textOverlay, outputWidth, outputHeight) {
-  if (!hasTextOverlay(textOverlay)) {
-    return inputFile; // no overlay needed
+let fontLoaded = false;
+async function loadDefaultFont(ff) {
+  if (fontLoaded) return;
+  try {
+    try { await ff.createDir('/fonts'); } catch (e) {}
+    const fontUrl = new URL(window.location.origin + '/fonts/Inter-Bold.ttf').href;
+    const fontData = await fetchFile(fontUrl);
+    await ff.writeFile('/fonts/Inter-Bold.ttf', fontData);
+    fontLoaded = true;
+  } catch (e) {
+    console.warn("Failed to load default font for ASS subtitles from:", window.location.origin + '/fonts/Inter-Bold.ttf', e);
+  }
+}
+
+async function applyOverlaysToVideo(ff, inputFile, outputFile, options) {
+  const { textOverlay, captionsConfig, captionTimings, outputWidth = 1080, outputHeight = 1920 } = options;
+  const useTextOverlay = hasTextOverlay(textOverlay);
+  const useCaptions = captionsConfig?.enabled && captionTimings?.length > 0;
+
+  if (!useTextOverlay && !useCaptions) {
+    return inputFile;
   }
 
-  const overlayPNG = renderOverlayPNG(textOverlay, outputWidth, outputHeight);
-  await ff.writeFile('text_overlay.png', overlayPNG);
+  const inputs = ['-i', inputFile];
+  let filterComplex = '';
 
-  const exitCode = await ff.exec([
-    '-i', inputFile,
-    '-i', 'text_overlay.png',
-    '-filter_complex', '[0:v][1:v]overlay=0:0',
+  if (useTextOverlay) {
+    const overlayPNG = renderOverlayPNG(textOverlay, outputWidth, outputHeight);
+    await ff.writeFile('text_overlay.png', overlayPNG);
+    inputs.push('-i', 'text_overlay.png');
+  }
+
+  if (useCaptions) {
+    await loadDefaultFont(ff);
+    const assText = generateASS(captionTimings, captionsConfig, outputWidth, outputHeight);
+    await ff.writeFile('captions.ass', new TextEncoder().encode(assText));
+  }
+
+  if (useTextOverlay && useCaptions) {
+    filterComplex = '[0:v][1:v]overlay=0:0,ass=captions.ass:fontsdir=/fonts';
+  } else if (useTextOverlay) {
+    filterComplex = '[0:v][1:v]overlay=0:0';
+  } else if (useCaptions) {
+    // If we filter without a second input, we can just apply the filter directly to v stream
+    filterComplex = 'ass=captions.ass:fontsdir=/fonts';
+  }
+
+  let args = [...inputs];
+  
+  if (filterComplex) {
+    args.push('-filter_complex', filterComplex);
+  }
+
+  args.push(
     '-c:v', 'libx264',
     '-preset', 'ultrafast',
     '-crf', '23',
@@ -56,13 +99,16 @@ async function applyTextOverlayToVideo(ff, inputFile, outputFile, textOverlay, o
     '-c:a', 'copy',
     '-movflags', '+faststart',
     '-y',
-    outputFile,
-  ]);
+    outputFile
+  );
 
-  try { await ff.deleteFile('text_overlay.png'); } catch (e) { /* ignore */ }
+  const exitCode = await ff.exec(args);
+
+  try { if (useTextOverlay) await ff.deleteFile('text_overlay.png'); } catch (e) {}
+  try { if (useCaptions) await ff.deleteFile('captions.ass'); } catch (e) {}
 
   if (exitCode !== 0) {
-    console.warn(`[Assembler] Text overlay compositing failed with code ${exitCode}, using video without overlay`);
+    console.warn(`[Assembler] Overlay compositing failed with code ${exitCode}, using video without overlay`);
     return inputFile;
   }
 
@@ -82,7 +128,7 @@ async function applyTextOverlayToVideo(ff, inputFile, outputFile, textOverlay, o
 export async function assembleAd(segments, voiceoverBlob, options = {}, onProgress = () => {}) {
   const ff = await getFFmpeg();
 
-  const { outputWidth = 1080, outputHeight = 1920, textOverlay = null } = options;
+  const { outputWidth = 1080, outputHeight = 1920, textOverlay = null, captionsConfig = null, captionTimings = null } = options;
 
   onProgress({ stage: 'loading', percent: 5, message: 'Loading source files...' });
 
@@ -179,11 +225,11 @@ export async function assembleAd(segments, voiceoverBlob, options = {}, onProgre
     throw new Error(`Final merge failed with exit code ${exitCode}`);
   }
 
-  // Apply text overlay if configured
+  // Apply overlays if configured
   let finalFile = 'merged_output.mp4';
-  if (hasTextOverlay(textOverlay)) {
-    onProgress({ stage: 'overlay', percent: 85, message: 'Applying text overlay...' });
-    finalFile = await applyTextOverlayToVideo(ff, 'merged_output.mp4', 'final_output.mp4', textOverlay, outputWidth, outputHeight);
+  if (hasTextOverlay(textOverlay) || (captionsConfig?.enabled && captionTimings?.length > 0)) {
+    onProgress({ stage: 'overlay', percent: 85, message: 'Applying overlays...' });
+    finalFile = await applyOverlaysToVideo(ff, 'merged_output.mp4', 'final_output.mp4', { ...options, outputWidth, outputHeight });
   } else {
     finalFile = 'merged_output.mp4';
   }
@@ -226,7 +272,7 @@ export async function assembleAd(segments, voiceoverBlob, options = {}, onProgre
  */
 export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlob, options = {}, onProgress = () => {}) {
   const ff = await getFFmpeg();
-  const { outputWidth = 1080, outputHeight = 1920, textOverlay = null } = options;
+  const { outputWidth = 1080, outputHeight = 1920, textOverlay = null, captionsConfig = null, captionTimings = null } = options;
 
   onProgress({ stage: 'loading', percent: 5, message: 'Loading source files...' });
 
@@ -341,11 +387,11 @@ export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlo
     throw new Error(`Final merge failed with exit code ${exitCode}`);
   }
 
-  // Apply text overlay if configured
+  // Apply overlays if configured
   let finalFile = 'merged_output.mp4';
-  if (hasTextOverlay(textOverlay)) {
-    onProgress({ stage: 'overlay', percent: 85, message: 'Applying text overlay...' });
-    finalFile = await applyTextOverlayToVideo(ff, 'merged_output.mp4', 'final_output.mp4', textOverlay, outputWidth, outputHeight);
+  if (hasTextOverlay(textOverlay) || (captionsConfig?.enabled && captionTimings?.length > 0)) {
+    onProgress({ stage: 'overlay', percent: 85, message: 'Applying overlays...' });
+    finalFile = await applyOverlaysToVideo(ff, 'merged_output.mp4', 'final_output.mp4', { ...options, outputWidth, outputHeight });
   }
 
   onProgress({ stage: 'finalizing', percent: 95, message: 'Reading output...' });
@@ -384,7 +430,7 @@ export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlo
  */
 export async function assembleVSL(vslFile, brollSegments, timeline, options = {}, onProgress = () => {}) {
   const ff = await getFFmpeg();
-  const { outputWidth = 1080, outputHeight = 1920, textOverlay = null } = options;
+  const { outputWidth = 1080, outputHeight = 1920, textOverlay = null, captionsConfig = null, captionTimings = null } = options;
 
   onProgress({ stage: 'loading', percent: 5, message: 'Loading VSL and source files...' });
 
@@ -531,11 +577,11 @@ export async function assembleVSL(vslFile, brollSegments, timeline, options = {}
     throw new Error(`Final merge failed with exit code ${exitCode}`);
   }
 
-  // Apply text overlay if configured
+  // Apply overlays if configured
   let finalFile = 'merged_output.mp4';
-  if (hasTextOverlay(textOverlay)) {
-    onProgress({ stage: 'overlay', percent: 85, message: 'Applying text overlay...' });
-    finalFile = await applyTextOverlayToVideo(ff, 'merged_output.mp4', 'final_output.mp4', textOverlay, outputWidth, outputHeight);
+  if (hasTextOverlay(textOverlay) || (captionsConfig?.enabled && captionTimings?.length > 0)) {
+    onProgress({ stage: 'overlay', percent: 85, message: 'Applying overlays...' });
+    finalFile = await applyOverlaysToVideo(ff, 'merged_output.mp4', 'final_output.mp4', { ...options, outputWidth, outputHeight });
   }
 
   onProgress({ stage: 'finalizing', percent: 95, message: 'Reading output...' });

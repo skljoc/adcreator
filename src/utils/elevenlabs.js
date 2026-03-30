@@ -27,16 +27,15 @@ export async function fetchVoices(apiKey) {
 }
 
 /**
- * Generate speech from text using ElevenLabs v3
- * Returns an audio Blob (mp3)
+ * Generate speech from text using ElevenLabs v3 with timestamps
+ * Returns { blob: Blob, wordTimings: Array }
  */
 export async function generateSpeech(apiKey, voiceId, text) {
-  const res = await fetch(`${BASE_URL}/text-to-speech/${voiceId}`, {
+  const res = await fetch(`${BASE_URL}/text-to-speech/${voiceId}/with-timestamps`, {
     method: 'POST',
     headers: {
       'xi-api-key': apiKey,
-      'Content-Type': 'application/json',
-      'Accept': 'audio/mpeg',
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({
       text,
@@ -55,8 +54,51 @@ export async function generateSpeech(apiKey, voiceId, text) {
     throw new Error(`ElevenLabs TTS failed: ${res.status} — ${err}`);
   }
 
-  const blob = await res.blob();
-  return blob;
+  const data = await res.json();
+  
+  // Convert base64 audio to Blob
+  const byteCharacters = atob(data.audio_base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  const blob = new Blob([byteArray], { type: 'audio/mpeg' });
+
+  // Parse character alignment into word timings
+  const wordTimings = [];
+  if (data.alignment && data.alignment.characters) {
+    const chars = data.alignment.characters;
+    const starts = data.alignment.character_start_times_seconds;
+    const ends = data.alignment.character_end_times_seconds;
+
+    let currentWord = '';
+    let wordStart = null;
+    let wordEnd = null;
+
+    for (let i = 0; i < chars.length; i++) {
+      const char = chars[i];
+      // Break words on spaces, newlines, and sometimes punctuation if desired.
+      // We'll just break on space/newline for now.
+      if (char === ' ' || char === '\n') {
+        if (currentWord.trim()) {
+          wordTimings.push({ word: currentWord.trim(), start: wordStart, end: wordEnd });
+          currentWord = '';
+          wordStart = null;
+        }
+      } else {
+        if (currentWord === '') wordStart = starts[i];
+        currentWord += char;
+        wordEnd = ends[i];
+      }
+    }
+    // catch last word
+    if (currentWord.trim()) {
+      wordTimings.push({ word: currentWord.trim(), start: wordStart, end: wordEnd });
+    }
+  }
+
+  return { blob, wordTimings };
 }
 
 /**

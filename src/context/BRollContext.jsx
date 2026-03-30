@@ -25,6 +25,26 @@ export const DEFAULT_TEXT_OVERLAY = {
   rotation: 0,
 };
 
+export const DEFAULT_CAPTIONS_CONFIG = {
+  enabled: true,
+  fontFamily: 'Inter',
+  fontSize: 64,
+  fontWeight: '800', // Bold/Black looks best for CapCut style
+  textColor: '#FFFFFF',
+  highlightColor: '#FFE600', // CapCut yellow
+  strokeEnabled: true,
+  strokeColor: '#000000',
+  strokeWidth: 4,
+  shadowEnabled: true,
+  shadowColor: 'rgba(0,0,0,0.8)',
+  shadowBlur: 10,
+  shadowOffsetY: 4,
+  bgEnabled: false,
+  bgColor: '#000000',
+  yPosition: 80, // percentage from top (near bottom)
+  maxWordsPerLine: 4,
+};
+
 const initialState = {
   // Creation mode: 'broll' | 'hook-broll' | 'vsl'
   creationMode: 'broll',
@@ -131,6 +151,8 @@ function reducer(state, action) {
             index: i,
             script: '',
             textOverlay: { ...DEFAULT_TEXT_OVERLAY },
+            captionsConfig: { ...DEFAULT_CAPTIONS_CONFIG },
+            captionTimings: [],
             voiceoverBlob: null,
             voiceoverUrl: null,
             voiceoverDuration: 0,
