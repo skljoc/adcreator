@@ -5,6 +5,9 @@ export default function BRollPreview({ textOverlay, captionsConfig }) {
   const tc = textOverlay;
   const cc = captionsConfig;
 
+  // Sync scaling: 140px preview width vs 1080px actual video width
+  const SCALE = 140 / 1080;
+
   // Mock caption text
   const mockCaption = "This is how your captions will look!";
 
@@ -15,17 +18,17 @@ export default function BRollPreview({ textOverlay, captionsConfig }) {
     top: `${tc.y}%`,
     transform: `translate(-50%, -50%) rotate(${tc.rotation}deg)`,
     color: tc.color,
-    fontSize: `${tc.fontSize / 4}px`, // Scaled down for preview
+    fontSize: `${tc.fontSize * SCALE}px`, // Unified scaling
     fontFamily: tc.fontFamily,
     fontWeight: tc.fontWeight,
     fontStyle: tc.fontStyle,
     textAlign: tc.textAlign,
-    letterSpacing: `${tc.letterSpacing / 4}px`,
+    letterSpacing: `${tc.letterSpacing * SCALE}px`,
     lineHeight: tc.lineHeight,
     opacity: tc.opacity,
-    padding: tc.bgEnabled ? `${tc.backgroundPadding / 4}px` : '0',
+    padding: tc.bgEnabled ? `${tc.backgroundPadding * SCALE}px` : '0',
     backgroundColor: tc.bgEnabled ? tc.backgroundColor : 'transparent',
-    borderRadius: tc.bgEnabled ? `${tc.borderRadius / 4}px` : '0',
+    borderRadius: tc.bgEnabled ? `${tc.borderRadius * SCALE}px` : '0',
     zIndex: 10,
     pointerEvents: 'none',
     whiteSpace: 'pre-wrap',
@@ -36,10 +39,10 @@ export default function BRollPreview({ textOverlay, captionsConfig }) {
 
   // Shadow/Stroke for Text Overlay
   if (tc.shadow?.enabled) {
-    overlayStyle.textShadow = `${tc.shadow.offsetX / 4}px ${tc.shadow.offsetY / 4}px ${tc.shadow.blur / 4}px ${tc.shadow.color}`;
+    overlayStyle.textShadow = `${tc.shadow.offsetX * SCALE}px ${tc.shadow.offsetY * SCALE}px ${tc.shadow.blur * SCALE}px ${tc.shadow.color}`;
   }
   if (tc.stroke?.enabled) {
-    overlayStyle.WebkitTextStroke = `${tc.stroke.width / 4}px ${tc.stroke.color}`;
+    overlayStyle.WebkitTextStroke = `${tc.stroke.width * SCALE}px ${tc.stroke.color}`;
   }
 
   // Highlight style logic
@@ -59,7 +62,7 @@ export default function BRollPreview({ textOverlay, captionsConfig }) {
     width: '90%',
     textAlign: 'center',
     fontFamily: cc.fontFamily,
-    fontSize: `${cc.fontSize / 4}px`,
+    fontSize: `${cc.fontSize * SCALE}px`, // Unified scaling
     fontWeight: cc.fontWeight,
     color: cc.textColor,
     zIndex: 20,
@@ -68,10 +71,10 @@ export default function BRollPreview({ textOverlay, captionsConfig }) {
   };
 
   if (cc.strokeEnabled) {
-    captionsStyle.WebkitTextStroke = `${cc.strokeWidth / 4}px ${cc.strokeColor}`;
+    captionsStyle.WebkitTextStroke = `${cc.strokeWidth * SCALE}px ${cc.strokeColor}`;
   }
   if (cc.shadowEnabled) {
-    captionsStyle.textShadow = `0 ${cc.shadowOffsetY / 4}px ${cc.shadowBlur / 4}px ${cc.shadowColor}`;
+    captionsStyle.textShadow = `0 ${cc.shadowOffsetY * SCALE}px ${cc.shadowBlur * SCALE}px ${cc.shadowColor}`;
   }
   if (cc.bgEnabled) {
     captionsStyle.backgroundColor = cc.bgColor;

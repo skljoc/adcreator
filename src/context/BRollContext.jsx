@@ -6,7 +6,7 @@ export const DEFAULT_TEXT_OVERLAY = {
   text: '',
   x: 50,
   y: 50,
-  fontSize: 48,
+  fontSize: 100,
   fontFamily: 'Inter',
   fontWeight: '700',
   fontStyle: 'normal',
@@ -28,7 +28,7 @@ export const DEFAULT_TEXT_OVERLAY = {
 export const DEFAULT_CAPTIONS_CONFIG = {
   enabled: true,
   fontFamily: 'Inter',
-  fontSize: 64,
+  fontSize: 110,
   fontWeight: '800', // Bold/Black looks best for CapCut style
   textColor: '#FFFFFF',
   highlightColor: '#FFE600', // CapCut yellow

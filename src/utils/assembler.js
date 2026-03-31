@@ -45,7 +45,7 @@ async function loadDefaultFont(ff) {
     try { await ff.createDir('/fonts'); } catch (e) {}
     const fontUrl = new URL(window.location.origin + '/fonts/Inter-Bold.ttf').href;
     const fontData = await fetchFile(fontUrl);
-    await ff.writeFile('/fonts/Inter-Bold.ttf', fontData);
+    await ff.writeFile('Inter-Bold.ttf', fontData);
     fontLoaded = true;
   } catch (e) {
     console.warn("Failed to load default font for ASS subtitles from:", window.location.origin + '/fonts/Inter-Bold.ttf', e);
@@ -77,12 +77,11 @@ async function applyOverlaysToVideo(ff, inputFile, outputFile, options) {
   }
 
   if (useTextOverlay && useCaptions) {
-    filterComplex = '[0:v][1:v]overlay=0:0,ass=captions.ass:fontsdir=/fonts';
+    filterComplex = '[0:v][1:v]overlay=0:0,ass=captions.ass:fontsdir=.';
   } else if (useTextOverlay) {
     filterComplex = '[0:v][1:v]overlay=0:0';
   } else if (useCaptions) {
-    // If we filter without a second input, we can just apply the filter directly to v stream
-    filterComplex = 'ass=captions.ass:fontsdir=/fonts';
+    filterComplex = 'ass=captions.ass:fontsdir=.';
   }
 
   let args = [...inputs];
