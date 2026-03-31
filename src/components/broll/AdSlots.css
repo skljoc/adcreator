@@ -76,18 +76,27 @@
   }
 }
 
-/* Captions Settings v2 */
+/* ============================================
+   CAPTIONS SETTINGS v2 
+   ============================================ */
 .captions-settings-v2 {
   margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  transition: all 0.25s ease;
+}
+
+.captions-settings-v2:has(.caption-toggle-btn.on) {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.06);
 }
 
 .captions-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.75rem;
 }
 
 .captions-toggle-wrap {
@@ -97,16 +106,19 @@
 }
 
 .captions-label {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 700;
   color: var(--text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
+  transition: color 0.2s;
 }
 
 .captions-grid {
   display: grid;
-  gap: 0.5rem;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .captions-row {
@@ -128,14 +140,70 @@
   font-weight: 500;
 }
 
+.captions-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 4px 0;
+}
+
+/* Caption Presets Grid */
+.captions-presets {
+  margin-bottom: 4px;
+}
+
+.caption-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.caption-preset-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-primary);
+  font-size: 0.75rem;
+}
+
+.caption-preset-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--text-primary);
+}
+
+.caption-preset-btn.active {
+  border-color: var(--accent-primary);
+  background: rgba(124, 91, 245, 0.1);
+  color: var(--text-primary);
+}
+
+.preset-preview {
+  font-weight: 900;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.preset-name {
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+/* Color input */
 .color-input-wrap {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--input-bg);
   padding: 4px 8px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--input-border);
 }
 
 .color-input-wrap input[type="color"] {
@@ -152,6 +220,7 @@
   color: var(--text-primary);
 }
 
+/* Checkbox toggles in captions */
 .checkbox-wrap {
   display: flex;
   align-items: center;
@@ -159,15 +228,15 @@
   cursor: pointer;
   font-size: 0.8rem;
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--input-bg);
   padding: 6px 12px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--input-border);
   transition: all 0.2s;
 }
 
 .checkbox-wrap:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface-3);
 }
 
 .checkbox-wrap input[type="checkbox"] {
@@ -186,3 +255,126 @@
   text-transform: uppercase;
 }
 
+/* ============================================
+   CUSTOM CAPTION TOGGLE BUTTON 
+   ============================================ */
+.caption-toggle-btn {
+  position: relative;
+  width: 52px;
+  height: 28px;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  flex-shrink: 0;
+  padding: 0;
+  outline: none;
+}
+
+.caption-toggle-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.caption-toggle-btn.off {
+  background: var(--surface-3);
+  border-color: var(--glass-border);
+}
+
+.caption-toggle-btn.on {
+  background: #22c55e;
+  border-color: #16a34a;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.35);
+}
+
+.caption-toggle-knob {
+  position: absolute;
+  top: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  transition: all 0.25s ease;
+  pointer-events: none;
+}
+
+.caption-toggle-btn.off .caption-toggle-knob {
+  left: 3px;
+  background: var(--text-secondary);
+}
+
+.caption-toggle-btn.on .caption-toggle-knob {
+  left: 27px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Status label colors */
+.captions-label.status-on {
+  color: #22c55e;
+}
+
+.captions-label.status-off {
+  color: var(--text-tertiary);
+}
+
+/* ============================================
+   PER-AD VOICE SELECTOR
+   ============================================ */
+.ad-voice-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  transition: all 0.2s ease;
+}
+
+.ad-voice-selector:hover {
+  border-color: var(--glass-border-hover);
+  background: var(--surface-2);
+}
+
+.voice-selector-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.voice-icon {
+  font-size: 0.85rem;
+}
+
+.voice-selector-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.voice-selector-controls select {
+  flex: 1;
+  min-width: 0;
+}
+
+.voice-preview-btn {
+  flex-shrink: 0;
+  min-width: 80px;
+  background: var(--surface-2) !important;
+  border: 1px solid var(--glass-border) !important;
+  transition: all 0.2s ease !important;
+}
+
+.voice-preview-btn:hover {
+  background: var(--surface-3) !important;
+  border-color: var(--glass-border-hover) !important;
+}
+
+.voice-preview-btn.playing {
+  background: rgba(124, 91, 245, 0.15) !important;
+  border-color: rgba(124, 91, 245, 0.3) !important;
+  color: var(--accent-primary) !important;
+}

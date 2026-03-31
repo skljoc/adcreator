@@ -61,7 +61,7 @@ function formatASSTime(seconds) {
  * Slice an array of word timings into punchy, short subtitle lines (e.g., 3-5 words).
  * Considers natural pauses based on punctuation.
  */
-function chunkWordTimings(wordTimings, maxWords = 4) {
+export function chunkWordTimings(wordTimings, maxWords = 4) {
   const chunks = [];
   let currentChunk = [];
   

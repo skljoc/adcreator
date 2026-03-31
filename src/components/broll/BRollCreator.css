@@ -592,9 +592,48 @@
 .overlay-options .bg-style-toggle {
   display: flex;
   gap: 2px;
-  background: var(--surface-secondary);
+  background: var(--surface-3);
   border-radius: var(--radius-sm);
   padding: 2px;
+}
+
+/* Dedicated BG style toggle button — NOT using mode-btn to avoid ::before gradient overlay */
+.bg-toggle-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.bg-toggle-btn:hover {
+  color: var(--text-primary);
+  background: var(--surface-2);
+}
+
+.bg-toggle-btn.active {
+  color: #fff;
+  background: var(--accent-primary);
+  box-shadow: 0 0 8px rgba(124, 91, 245, 0.3);
+}
+
+/* Overlay textarea styling */
+.overlay-title-input {
+  min-height: 50px;
+  max-height: 120px;
+  resize: vertical;
+  line-height: 1.4;
 }
 
 .overlay-options .toggle-switch {

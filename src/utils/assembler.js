@@ -5,27 +5,8 @@
  */
 import { getFFmpeg } from './ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
-import { renderTextOverlay } from './canvas';
-import { generateASS } from './subtitles';
-
-/**
- * Render a text overlay config to a PNG Uint8Array at the given dimensions.
- */
-function renderOverlayPNG(textConfig, width, height) {
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, width, height);
-  renderTextOverlay(ctx, textConfig, width, height);
-  const dataURL = canvas.toDataURL('image/png');
-  const byteString = atob(dataURL.split(',')[1]);
-  const buffer = new Uint8Array(byteString.length);
-  for (let i = 0; i < byteString.length; i++) {
-    buffer[i] = byteString.charCodeAt(i);
-  }
-  return buffer;
-}
+import { renderTextOverlay, renderCaptionChunk } from './canvas';
+import { chunkWordTimings } from './subtitles';
 
 /**
  * Check if a textOverlay config has actual text to render.
@@ -35,96 +16,98 @@ function hasTextOverlay(textOverlay) {
 }
 
 /**
- * Apply text overlays and/or ASS subtitles to a video file using FFmpeg.
- * Returns the output filename.
+ * Render a text overlay config to a PNG Uint8Array at the given dimensions.
  */
-let fontLoaded = false;
-async function loadDefaultFont(ff) {
-  if (fontLoaded) return;
-  try {
-    const fontUrl = new URL(window.location.origin + '/fonts/Inter-Bold.ttf').href;
-    const fontData = await fetchFile(fontUrl);
-    
-    // Rename to match the name in ASS Styles exactly
-    await ff.writeFile('Inter.ttf', fontData);
-    
-    // Create fonts.conf to tell libass exactly where to find the font
-    const fontsConf = `<?xml version="1.0"?>
-<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
-<fontconfig>
-  <dir>.</dir>
-  <match target="pattern">
-    <test name="family"><string>Inter</string></test>
-    <edit name="file" mode="assign"><string>Inter.ttf</string></edit>
-  </match>
-</fontconfig>`;
-    await ff.writeFile('fonts.conf', new TextEncoder().encode(fontsConf));
-    
-    fontLoaded = true;
-  } catch (e) {
-    console.warn("Failed to load default font for ASS subtitles:", e);
-  }
-}
-
 async function applyOverlaysToVideo(ff, inputFile, outputFile, options) {
   const { textOverlay, captionsConfig, captionTimings, outputWidth = 1080, outputHeight = 1920 } = options;
   const useTextOverlay = hasTextOverlay(textOverlay);
   const useCaptions = captionsConfig?.enabled && captionTimings?.length > 0;
 
-  if (!useTextOverlay && !useCaptions) {
-    return inputFile;
-  }
+  if (!useTextOverlay && !useCaptions) return inputFile;
 
   const inputs = ['-i', inputFile];
   let filterComplex = '';
+  let lastStream = '[0:v]';
+  let inputIdx = 1;
 
+  // 1. Static Title Overlay
   if (useTextOverlay) {
-    const overlayPNG = renderOverlayPNG(textOverlay, outputWidth, outputHeight);
-    await ff.writeFile('text_overlay.png', overlayPNG);
-    inputs.push('-i', 'text_overlay.png');
+    const canvas = document.createElement('canvas');
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
+    const ctx = canvas.getContext('2d');
+    renderTextOverlay(ctx, textOverlay, outputWidth, outputHeight);
+    
+    const dataURL = canvas.toDataURL('image/png');
+    const byteString = atob(dataURL.split(',')[1]);
+    const buffer = new Uint8Array(byteString.length);
+    for (let i = 0; i < byteString.length; i++) buffer[i] = byteString.charCodeAt(i);
+    
+    await ff.writeFile('title.png', buffer);
+    inputs.push('-i', 'title.png');
+    filterComplex += `${lastStream}[${inputIdx}:v]overlay=0:0[v${inputIdx}];`;
+    lastStream = `[v${inputIdx}]`;
+    inputIdx++;
   }
 
+  // 2. Dynamic Caption Overlays (Manual PNG Chain)
   if (useCaptions) {
-    await loadDefaultFont(ff);
-    const assText = generateASS(captionTimings, captionsConfig, outputWidth, outputHeight);
-    await ff.writeFile('captions.ass', new TextEncoder().encode(assText));
+    const chunks = chunkWordTimings(captionTimings, captionsConfig.maxWordsPerLine || 4);
+    const canvas = document.createElement('canvas');
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
+    const ctx = canvas.getContext('2d');
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      // For each chunk, we create one PNG per word to show the "highlight" moving
+      for (let w = 0; w < chunk.words.length; w++) {
+        const word = chunk.words[w];
+        ctx.clearRect(0, 0, outputWidth, outputHeight);
+        renderCaptionChunk(ctx, chunk, captionsConfig, outputWidth, outputHeight, w);
+
+        const dataURL = canvas.toDataURL('image/png');
+        const buffer = new Uint8Array(atob(dataURL.split(',')[1]).split('').map(c => c.charCodeAt(0)));
+        const filename = `cap_${i}_${w}.png`;
+        await ff.writeFile(filename, buffer);
+        
+        inputs.push('-i', filename);
+        
+        // Timing for this specific word's highlight
+        // It starts when the word starts, and ends when the NEXT word starts (or chunk ends)
+        const start = word.start;
+        const end = (w < chunk.words.length - 1) ? chunk.words[w+1].start : chunk.end;
+
+        filterComplex += `${lastStream}[${inputIdx}:v]overlay=0:0:enable='between(t,${start},${end})'[v${inputIdx}];`;
+        lastStream = `[v${inputIdx}]`;
+        inputIdx++;
+      }
+    }
   }
 
-  if (useTextOverlay && useCaptions) {
-    filterComplex = '[0:v][1:v]overlay=0:0,ass=captions.ass:fontsdir=.';
-  } else if (useTextOverlay) {
-    filterComplex = '[0:v][1:v]overlay=0:0';
-  } else if (useCaptions) {
-    filterComplex = 'ass=captions.ass:fontsdir=.';
-  }
-
-  let args = [...inputs];
+  // Remove trailing semicolon and handle the final stream name
+  filterComplex = filterComplex.slice(0, -1);
   
-  if (filterComplex) {
-    args.push('-filter_complex', filterComplex);
-  }
-
-  args.push(
-    '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-crf', '23',
-    '-pix_fmt', 'yuv420p',
-    '-c:a', 'copy',
-    '-movflags', '+faststart',
-    '-y',
-    outputFile
-  );
+  // FFmpeg command parts
+  const args = [...inputs, '-filter_complex', filterComplex, '-map', lastStream, '-map', '0:a'];
+  args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-y', outputFile);
 
   const exitCode = await ff.exec(args);
 
-  try { if (useTextOverlay) await ff.deleteFile('text_overlay.png'); } catch (e) {}
-  try { if (useCaptions) await ff.deleteFile('captions.ass'); } catch (e) {}
+  // Cleanup
+  try {
+    if (useTextOverlay) await ff.deleteFile('title.png');
+    if (useCaptions) {
+      const chunks = chunkWordTimings(captionTimings, captionsConfig.maxWordsPerLine || 4);
+      for (let i = 0; i < chunks.length; i++) {
+        for (let w = 0; w < chunks[i].words.length; w++) {
+          await ff.deleteFile(`cap_${i}_${w}.png`);
+        }
+      }
+    }
+  } catch (e) {}
 
-  if (exitCode !== 0) {
-    console.warn(`[Assembler] Overlay compositing failed with code ${exitCode}, using video without overlay`);
-    return inputFile;
-  }
-
+  if (exitCode !== 0) return inputFile;
   return outputFile;
 }
 

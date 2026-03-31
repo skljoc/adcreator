@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { useBRoll } from '../../context/BRollContext';
 import BRollTextOverlay from './BRollTextOverlay';
 import CaptionsSettings from './CaptionsSettings';
@@ -8,9 +8,24 @@ import './AdSlots.css';
 import { ErrorBoundary } from '../ErrorBoundary';
 
 export default function AdSlots() {
-  const { ads, setAdCount, updateAdScript, creationMode, vslVideo } = useBRoll();
+  const { ads, setAdCount, updateAdScript, updateAd, creationMode, vslVideo, settings } = useBRoll();
+  const [previewingVoiceId, setPreviewingVoiceId] = useState(null);
+  const [audio] = useState(new Audio());
 
   const isVSL = creationMode === 'vsl';
+  const voices = settings.voices || [];
+
+  const togglePreview = useCallback((voice) => {
+    if (previewingVoiceId === voice.id) {
+      audio.pause();
+      setPreviewingVoiceId(null);
+    } else {
+      audio.src = voice.previewUrl;
+      audio.play();
+      setPreviewingVoiceId(voice.id);
+      audio.onended = () => setPreviewingVoiceId(null);
+    }
+  }, [previewingVoiceId, audio]);
 
   return (
     <div className="video-slots">
@@ -85,6 +100,41 @@ export default function AdSlots() {
                     rows={4}
                     disabled={ad.status !== 'idle' && ad.status !== 'error'}
                   />
+                )}
+
+                {/* Per-Ad Voice Selector — always shown for non-VSL when voices are loaded */}
+                {!isVSL && voices.length > 0 && (
+                  <div className="ad-voice-selector">
+                    <div className="voice-selector-label">
+                      <span className="voice-icon">🎙️</span>
+                      <span>Voice</span>
+                    </div>
+                    <div className="voice-selector-controls">
+                      <select
+                        className="glass-input"
+                        value={ad.voiceId || ''}
+                        onChange={(e) => updateAd(ad.id, { voiceId: e.target.value })}
+                        disabled={ad.status !== 'idle' && ad.status !== 'error'}
+                      >
+                        <option value="">Global — {voices.find(v => v.id === settings.voiceId)?.name || 'Default'}</option>
+                        {voices.map(v => (
+                          <option key={v.id} value={v.id}>{v.name} — {v.category}</option>
+                        ))}
+                      </select>
+                      <button
+                        className={`btn btn-sm voice-preview-btn ${previewingVoiceId === (ad.voiceId || settings.voiceId) ? 'playing' : ''}`}
+                        onClick={() => {
+                          const voiceId = ad.voiceId || settings.voiceId;
+                          const voice = voices.find(v => v.id === voiceId);
+                          if (voice) togglePreview(voice);
+                        }}
+                        title="Preview Voice"
+                        type="button"
+                      >
+                        {previewingVoiceId === (ad.voiceId || settings.voiceId) ? '⏹️ Stop' : '▶️ Play'}
+                      </button>
+                    </div>
+                  </div>
                 )}
 
                 {/* Text Overlay — available in all modes */}

@@ -26,9 +26,9 @@ export const DEFAULT_TEXT_OVERLAY = {
 };
 
 export const DEFAULT_CAPTIONS_CONFIG = {
-  enabled: true,
+  enabled: false,
   fontFamily: 'Inter',
-  fontSize: 110,
+  fontSize: 75,
   fontWeight: '800', // Bold/Black looks best for CapCut style
   textColor: '#FFFFFF',
   highlightColor: '#FFE600', // CapCut yellow
@@ -41,7 +41,7 @@ export const DEFAULT_CAPTIONS_CONFIG = {
   shadowOffsetY: 4,
   bgEnabled: false,
   bgColor: '#000000',
-  yPosition: 80, // percentage from top (near bottom)
+  yPosition: 70, // percentage from top
   maxWordsPerLine: 4,
 };
 
@@ -150,13 +150,14 @@ function reducer(state, action) {
             id: crypto.randomUUID(),
             index: i,
             script: '',
+            voiceId: '', // empty = use global voice from settings
             textOverlay: { ...DEFAULT_TEXT_OVERLAY },
             captionsConfig: { ...DEFAULT_CAPTIONS_CONFIG },
             captionTimings: [],
             voiceoverBlob: null,
             voiceoverUrl: null,
             voiceoverDuration: 0,
-            status: 'idle', // idle | generating-voice | analyzing | assembling | done | error
+            status: 'idle',
             progress: 0,
             error: null,
             outputUrl: null,

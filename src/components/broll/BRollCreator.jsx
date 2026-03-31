@@ -49,40 +49,83 @@ export default function BRollCreator() {
   }, [sourceVideos]);
 
   // ─── GENERATE: B-Roll Only mode ───
+  // ─── Helper: ask user for save directory (Electron or browser) ───
+  const askForSaveDirectory = useCallback(async () => {
+    // Try Electron native dialog first
+    if (window.electronAPI?.selectDirectory) {
+      const dirResult = await selectDirectory();
+      if (!dirResult.success || !dirResult.path) return null;
+      return { type: 'electron', path: dirResult.path };
+    }
+    // Browser fallback: use showDirectoryPicker (File System Access API)
+    if (window.showDirectoryPicker) {
+      try {
+        const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        return { type: 'browser', handle: dirHandle };
+      } catch (err) {
+        if (err.name === 'AbortError') return null;
+        console.warn('showDirectoryPicker failed:', err);
+        return null;
+      }
+    }
+    // No directory picker available — will fall back to individual downloads
+    return { type: 'download' };
+  }, []);
+
+  // ─── Helper: save file to selected directory ───
+  const saveToDirectory = useCallback(async (videoData, filename, dir) => {
+    if (!dir) {
+      downloadFile(videoData, filename);
+      return;
+    }
+    if (dir.type === 'electron') {
+      await saveFile(videoData, filename, dir.path);
+    } else if (dir.type === 'browser' && dir.handle) {
+      try {
+        const fileHandle = await dir.handle.getFileHandle(filename, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(new Blob([videoData], { type: 'video/mp4' }));
+        await writable.close();
+      } catch (err) {
+        console.warn('Browser directory save failed, downloading instead:', err);
+        downloadFile(videoData, filename);
+      }
+    } else {
+      downloadFile(videoData, filename);
+    }
+  }, []);
+
+  // ─── GENERATE: B-Roll Only mode ───
   const handleGenerateBRoll = useCallback(async () => {
     const adsToProcess = ads.filter(a => a.script.trim());
     if (adsToProcess.length === 0 || !settings.apiKey || !settings.voiceId || sourceVideos.length === 0) return;
 
     setGenerating(true);
     clearLog();
-    addLog(`Starting generation of ${adsToProcess.length} B-Roll ads...`);
 
-    const scenesMap = new Map();
-    for (const v of sourceVideos) {
-      if (v.analyzed && v.scenes.length > 0) scenesMap.set(v.id, v.scenes);
+    // Ask for save directory FIRST, before any processing
+    const selectedDir = await askForSaveDirectory();
+    if (!selectedDir) {
+      addLog('❌ Directory selection cancelled.');
+      setGenerating(false);
+      return;
     }
+    if (selectedDir.type === 'electron') addLog(`📁 Saving to: ${selectedDir.path}`);
+    else if (selectedDir.type === 'browser') addLog(`📁 Saving to selected folder`);
 
+    // Analyze source videos
+    const scenesMap = new Map();
+    sourceVideos.forEach(v => { if (v.analyzed && v.scenes?.length) scenesMap.set(v.id, v.scenes); });
     await analyzeSourceVideos(scenesMap);
     const analyzedSources = getAnalyzedSources(scenesMap);
 
     if (analyzedSources.length === 0) {
-      addLog('❌ No source videos with usable scenes found.');
+      addLog('❌ No analyzed source videos available.');
       setGenerating(false);
       return;
     }
 
-    addLog(`Using ${analyzedSources.length} analyzed source videos.`);
-
-    let selectedDir = null;
-    if (window.electronAPI?.isElectron) {
-      const dirResult = await selectDirectory();
-      if (!dirResult.success || !dirResult.path) {
-        addLog('❌ Directory selection cancelled.');
-        setGenerating(false);
-        return;
-      }
-      selectedDir = dirResult.path;
-    }
+    addLog(`Starting generation of ${adsToProcess.length} B-Roll ads...`);
 
     for (let i = 0; i < adsToProcess.length; i++) {
       const ad = adsToProcess[i];
@@ -92,7 +135,8 @@ export default function BRollCreator() {
       try {
         updateAd(ad.id, { status: 'generating-voice', progress: 10 });
         addLog(`Generating voiceover...`);
-        const { blob: voiceBlob, wordTimings } = await generateSpeech(settings.apiKey, settings.voiceId, ad.script);
+        const voiceId = ad.voiceId || settings.voiceId;
+        const { blob: voiceBlob, wordTimings } = await generateSpeech(settings.apiKey, voiceId, ad.script);
         const duration = await getAudioDuration(voiceBlob);
         const voiceoverUrl = URL.createObjectURL(voiceBlob);
         updateAd(ad.id, { voiceoverBlob: voiceBlob, voiceoverUrl, voiceoverDuration: duration, captionTimings: wordTimings, progress: 25 });
@@ -126,11 +170,7 @@ export default function BRollCreator() {
         updateAd(ad.id, { status: 'done', progress: 100, outputUrl });
         addLog(`✅ Ad #${adNum} complete!`);
         
-        if (selectedDir) {
-          await saveFile(videoData, `ad_${adNum}.mp4`, selectedDir);
-        } else {
-          downloadFile(videoData, `ad_${adNum}.mp4`);
-        }
+        await saveToDirectory(videoData, `ad_${adNum}.mp4`, selectedDir);
       } catch (err) {
         console.error(`Ad #${adNum} failed:`, err);
         updateAd(ad.id, { status: 'error', error: err.message, progress: 0 });
@@ -140,7 +180,7 @@ export default function BRollCreator() {
 
     addLog(`\n✨ Generation complete!`);
     setGenerating(false);
-  }, [ads, settings, sourceVideos, setGenerating, clearLog, addLog, updateAd, analyzeSourceVideos, getAnalyzedSources]);
+  }, [ads, settings, sourceVideos, setGenerating, clearLog, addLog, updateAd, analyzeSourceVideos, getAnalyzedSources, askForSaveDirectory, saveToDirectory]);
 
   // ─── GENERATE: Hook + B-Roll mode ───
   const handleGenerateHookBRoll = useCallback(async () => {
@@ -149,35 +189,31 @@ export default function BRollCreator() {
 
     setGenerating(true);
     clearLog();
-    addLog(`Starting generation of ${adsToProcess.length} Hook+B-Roll ads...`);
-    addLog(`Hook duration: ${settings.hookDuration}s`);
 
-    const scenesMap = new Map();
-    for (const v of sourceVideos) {
-      if (v.analyzed && v.scenes.length > 0) scenesMap.set(v.id, v.scenes);
+    // Ask for save directory FIRST, before any processing
+    const selectedDir = await askForSaveDirectory();
+    if (!selectedDir) {
+      addLog('❌ Directory selection cancelled.');
+      setGenerating(false);
+      return;
     }
+    if (selectedDir.type === 'electron') addLog(`📁 Saving to: ${selectedDir.path}`);
+    else if (selectedDir.type === 'browser') addLog(`📁 Saving to selected folder`);
 
+    // Analyze source videos
+    const scenesMap = new Map();
+    sourceVideos.forEach(v => { if (v.analyzed && v.scenes?.length) scenesMap.set(v.id, v.scenes); });
     await analyzeSourceVideos(scenesMap);
     const analyzedSources = getAnalyzedSources(scenesMap);
 
     if (analyzedSources.length === 0) {
-      addLog('❌ No source videos with usable scenes found.');
+      addLog('❌ No analyzed source videos available.');
       setGenerating(false);
       return;
     }
 
-    addLog(`Using ${analyzedSources.length} analyzed B-roll sources + ${hookVideos.length} hook videos.`);
-
-    let selectedDir = null;
-    if (window.electronAPI?.isElectron) {
-      const dirResult = await selectDirectory();
-      if (!dirResult.success || !dirResult.path) {
-        addLog('❌ Directory selection cancelled.');
-        setGenerating(false);
-        return;
-      }
-      selectedDir = dirResult.path;
-    }
+    addLog(`Starting generation of ${adsToProcess.length} Hook+B-Roll ads...`);
+    addLog(`Hook duration: ${settings.hookDuration}s`);
 
     for (let i = 0; i < adsToProcess.length; i++) {
       const ad = adsToProcess[i];
@@ -188,7 +224,8 @@ export default function BRollCreator() {
         // Generate voiceover
         updateAd(ad.id, { status: 'generating-voice', progress: 10 });
         addLog(`Generating voiceover...`);
-        const { blob: voiceBlob, wordTimings } = await generateSpeech(settings.apiKey, settings.voiceId, ad.script);
+        const voiceId = ad.voiceId || settings.voiceId;
+        const { blob: voiceBlob, wordTimings } = await generateSpeech(settings.apiKey, voiceId, ad.script);
         const duration = await getAudioDuration(voiceBlob);
         const voiceoverUrl = URL.createObjectURL(voiceBlob);
         updateAd(ad.id, { voiceoverBlob: voiceBlob, voiceoverUrl, voiceoverDuration: duration, captionTimings: wordTimings, progress: 25 });
@@ -230,11 +267,7 @@ export default function BRollCreator() {
         updateAd(ad.id, { status: 'done', progress: 100, outputUrl });
         addLog(`✅ Ad #${adNum} complete!`);
         
-        if (selectedDir) {
-          await saveFile(videoData, `hook_broll_ad_${adNum}.mp4`, selectedDir);
-        } else {
-          downloadFile(videoData, `hook_broll_ad_${adNum}.mp4`);
-        }
+        await saveToDirectory(videoData, `hook_broll_ad_${adNum}.mp4`, selectedDir);
       } catch (err) {
         console.error(`Ad #${adNum} failed:`, err);
         updateAd(ad.id, { status: 'error', error: err.message, progress: 0 });
@@ -244,7 +277,7 @@ export default function BRollCreator() {
 
     addLog(`\n✨ Generation complete!`);
     setGenerating(false);
-  }, [ads, settings, sourceVideos, hookVideos, setGenerating, clearLog, addLog, updateAd, analyzeSourceVideos, getAnalyzedSources]);
+  }, [ads, settings, sourceVideos, hookVideos, setGenerating, clearLog, addLog, updateAd, analyzeSourceVideos, getAnalyzedSources, askForSaveDirectory, saveToDirectory]);
 
   // ─── GENERATE: VSL Style mode ───
   const handleGenerateVSL = useCallback(async () => {
@@ -252,35 +285,31 @@ export default function BRollCreator() {
 
     setGenerating(true);
     clearLog();
-    addLog(`Starting VSL-style generation (${ads.length} variation${ads.length !== 1 ? 's' : ''})...`);
-    addLog(`VSL source: ${vslVideo.name} (${vslVideo.duration.toFixed(1)}s)`);
 
-    const scenesMap = new Map();
-    for (const v of sourceVideos) {
-      if (v.analyzed && v.scenes.length > 0) scenesMap.set(v.id, v.scenes);
+    // Ask for save directory FIRST, before any processing
+    const selectedDir = await askForSaveDirectory();
+    if (!selectedDir) {
+      addLog('❌ Directory selection cancelled.');
+      setGenerating(false);
+      return;
     }
+    if (selectedDir.type === 'electron') addLog(`📁 Saving to: ${selectedDir.path}`);
+    else if (selectedDir.type === 'browser') addLog(`📁 Saving to selected folder`);
 
+    // Analyze source videos
+    const scenesMap = new Map();
+    sourceVideos.forEach(v => { if (v.analyzed && v.scenes?.length) scenesMap.set(v.id, v.scenes); });
     await analyzeSourceVideos(scenesMap);
     const analyzedSources = getAnalyzedSources(scenesMap);
 
     if (analyzedSources.length === 0) {
-      addLog('❌ No source videos with usable scenes found.');
+      addLog('❌ No analyzed source videos available.');
       setGenerating(false);
       return;
     }
 
-    addLog(`Using ${analyzedSources.length} analyzed B-roll sources.`);
-
-    let selectedDir = null;
-    if (window.electronAPI?.isElectron) {
-      const dirResult = await selectDirectory();
-      if (!dirResult.success || !dirResult.path) {
-        addLog('❌ Directory selection cancelled.');
-        setGenerating(false);
-        return;
-      }
-      selectedDir = dirResult.path;
-    }
+    addLog(`Starting VSL-style generation (${ads.length} variation${ads.length !== 1 ? 's' : ''})...`);
+    addLog(`VSL source: ${vslVideo.name} (${vslVideo.duration.toFixed(1)}s)`);
 
     for (let i = 0; i < ads.length; i++) {
       const ad = ads[i];
@@ -346,11 +375,7 @@ export default function BRollCreator() {
         updateAd(ad.id, { status: 'done', progress: 100, outputUrl });
         addLog(`✅ Variation #${varNum} complete!`);
         
-        if (selectedDir) {
-          await saveFile(videoData, `vsl_variation_${varNum}.mp4`, selectedDir);
-        } else {
-          downloadFile(videoData, `vsl_variation_${varNum}.mp4`);
-        }
+        await saveToDirectory(videoData, `vsl_variation_${varNum}.mp4`, selectedDir);
       } catch (err) {
         console.error(`Variation #${varNum} failed:`, err);
         updateAd(ad.id, { status: 'error', error: err.message, progress: 0 });
@@ -360,7 +385,7 @@ export default function BRollCreator() {
 
     addLog(`\n✨ Generation complete!`);
     setGenerating(false);
-  }, [ads, vslVideo, sourceVideos, setGenerating, clearLog, addLog, updateAd, analyzeSourceVideos, getAnalyzedSources]);
+  }, [ads, vslVideo, sourceVideos, setGenerating, clearLog, addLog, updateAd, analyzeSourceVideos, getAnalyzedSources, askForSaveDirectory, saveToDirectory]);
 
   // ─── Dispatch to correct handler ───
   const handleGenerate = useCallback(() => {

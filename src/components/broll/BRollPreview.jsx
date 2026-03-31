@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import './BRollPreview.css';
+
+const MOCK_WORDS = ['This', 'is', 'how', 'your', 'captions', 'look'];
 
 export default function BRollPreview({ textOverlay, captionsConfig }) {
   const tc = textOverlay;
@@ -8,8 +10,20 @@ export default function BRollPreview({ textOverlay, captionsConfig }) {
   // Sync scaling: 140px preview width vs 1080px actual video width
   const SCALE = 140 / 1080;
 
-  // Mock caption text
-  const mockCaption = "This is how your captions will look!";
+  // Animated word highlight index — cycles through mock words when captions are enabled
+  const [activeWordIdx, setActiveWordIdx] = useState(0);
+
+  useEffect(() => {
+    if (!cc.enabled) return;
+    const interval = setInterval(() => {
+      setActiveWordIdx(prev => (prev + 1) % MOCK_WORDS.length);
+    }, 600);
+    return () => clearInterval(interval);
+  }, [cc.enabled]);
+
+  // Determine bg mode
+  const isBlock = tc.bgEnabled && tc.bgStyle === 'block';
+  const isHighlight = tc.bgEnabled && (tc.bgStyle === 'highlight' || !tc.bgStyle);
 
   // Text Overlay Styles
   const overlayStyle = {
@@ -26,9 +40,6 @@ export default function BRollPreview({ textOverlay, captionsConfig }) {
     letterSpacing: `${tc.letterSpacing * SCALE}px`,
     lineHeight: tc.lineHeight,
     opacity: tc.opacity,
-    padding: tc.bgEnabled ? `${tc.backgroundPadding * SCALE}px` : '0',
-    backgroundColor: tc.bgEnabled ? tc.backgroundColor : 'transparent',
-    borderRadius: tc.bgEnabled ? `${tc.borderRadius * SCALE}px` : '0',
     zIndex: 10,
     pointerEvents: 'none',
     whiteSpace: 'pre-wrap',
@@ -36,6 +47,23 @@ export default function BRollPreview({ textOverlay, captionsConfig }) {
     display: 'flex',
     justifyContent: tc.textAlign === 'center' ? 'center' : tc.textAlign === 'right' ? 'flex-end' : 'flex-start',
   };
+
+  // Block mode: single rectangle behind ALL text
+  if (isBlock) {
+    overlayStyle.padding = `${tc.backgroundPadding * SCALE}px`;
+    overlayStyle.backgroundColor = tc.backgroundColor === 'transparent' ? 'rgba(0,0,0,0.6)' : tc.backgroundColor;
+    overlayStyle.borderRadius = `${tc.borderRadius * SCALE}px`;
+  }
+
+  // Highlight mode: per-line inline background applied via inner span
+  const highlightSpanStyle = isHighlight ? {
+    backgroundColor: tc.backgroundColor === 'transparent' ? 'rgba(0,0,0,0.6)' : tc.backgroundColor,
+    padding: `${tc.backgroundPadding * SCALE}px`,
+    borderRadius: `${tc.borderRadius * SCALE}px`,
+    boxDecorationBreak: 'clone',
+    WebkitBoxDecorationBreak: 'clone',
+    lineHeight: 1.8,
+  } : null;
 
   // Shadow/Stroke for Text Overlay
   if (tc.shadow?.enabled) {
@@ -45,16 +73,8 @@ export default function BRollPreview({ textOverlay, captionsConfig }) {
     overlayStyle.WebkitTextStroke = `${tc.stroke.width * SCALE}px ${tc.stroke.color}`;
   }
 
-  // Highlight style logic
-  if (tc.bgEnabled && tc.bgStyle === 'highlight') {
-    // In CSS we can't easily do the per-line highlight effect without wrapping each line,
-    // so for preview we'll just show it as a block or handle it with box-decoration-break if supported.
-    overlayStyle.boxDecorationBreak = 'clone';
-    overlayStyle.WebkitBoxDecorationBreak = 'clone';
-  }
-
   // Captions Styles
-  const captionsStyle = {
+  const captionsContainerStyle = {
     position: 'absolute',
     left: '50%',
     top: `${cc.yPosition}%`,
@@ -62,25 +82,41 @@ export default function BRollPreview({ textOverlay, captionsConfig }) {
     width: '90%',
     textAlign: 'center',
     fontFamily: cc.fontFamily,
-    fontSize: `${cc.fontSize * SCALE}px`, // Unified scaling
+    fontSize: `${cc.fontSize * SCALE}px`,
     fontWeight: cc.fontWeight,
-    color: cc.textColor,
     zIndex: 20,
     pointerEvents: 'none',
-    textTransform: 'uppercase', // CapCut style usually uppercase
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '3px',
+    flexWrap: 'wrap',
   };
 
-  if (cc.strokeEnabled) {
-    captionsStyle.WebkitTextStroke = `${cc.strokeWidth * SCALE}px ${cc.strokeColor}`;
-  }
-  if (cc.shadowEnabled) {
-    captionsStyle.textShadow = `0 ${cc.shadowOffsetY * SCALE}px ${cc.shadowBlur * SCALE}px ${cc.shadowColor}`;
-  }
-  if (cc.bgEnabled) {
-    captionsStyle.backgroundColor = cc.bgColor;
-    captionsStyle.padding = '4px 8px';
-    captionsStyle.borderRadius = '4px';
-  }
+  const getWordStyle = (isActive) => {
+    const style = {
+      color: isActive ? cc.highlightColor : cc.textColor,
+      transition: 'color 0.15s ease, transform 0.15s ease',
+      display: 'inline-block',
+      transform: isActive ? 'scale(1.1)' : 'scale(1)',
+    };
+
+    if (cc.strokeEnabled) {
+      style.WebkitTextStroke = `${cc.strokeWidth * SCALE}px ${cc.strokeColor}`;
+      style.paintOrder = 'stroke fill';
+    }
+    if (cc.shadowEnabled) {
+      style.textShadow = `0 ${cc.shadowOffsetY * SCALE}px ${cc.shadowBlur * SCALE}px ${cc.shadowColor}`;
+    }
+
+    return style;
+  };
+
+  // BG box for captions
+  const captionsBgStyle = cc.bgEnabled ? {
+    backgroundColor: cc.bgColor || 'rgba(0,0,0,0.75)',
+    padding: `${3 * SCALE}px ${6 * SCALE}px`,
+    borderRadius: `${4 * SCALE}px`,
+  } : {};
 
   return (
     <div className="broll-preview-container">
@@ -93,14 +129,22 @@ export default function BRollPreview({ textOverlay, captionsConfig }) {
           {/* Text Overlay Preview */}
           {tc.text && tc.text.trim() && (
             <div style={overlayStyle}>
-              {tc.text}
+              {highlightSpanStyle ? (
+                <span style={highlightSpanStyle}>{tc.text}</span>
+              ) : (
+                tc.text
+              )}
             </div>
           )}
 
-          {/* Captions Preview */}
+          {/* CapCut-Style Captions Preview with animated word highlight */}
           {cc.enabled && (
-            <div style={captionsStyle}>
-              <span style={{ color: cc.highlightColor }}>WORD</span> {mockCaption.split(' ').slice(1).join(' ')}
+            <div style={{ ...captionsContainerStyle, ...captionsBgStyle }}>
+              {MOCK_WORDS.map((word, i) => (
+                <span key={i} style={getWordStyle(i === activeWordIdx)}>
+                  {word}
+                </span>
+              ))}
             </div>
           )}
         </div>

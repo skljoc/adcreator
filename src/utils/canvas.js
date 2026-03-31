@@ -78,10 +78,14 @@ export function renderTextOverlay(ctx, textConfig, canvasWidth, canvasHeight) {
           lineX = anchorX + padding;
         }
 
-        const hlX = lineX - padding;
-        const hlY = lineY - padding * 0.3;
-        const hlW = lw + padding * 2;
-        const hlH = lineHeightPx + padding * 0.6;
+        // Center the highlight rect symmetrically around the text
+        // The text is drawn at lineY with textBaseline='top', so the text occupies
+        // lineY to lineY+fontSize. We want equal padding on all sides.
+        const hlPad = padding;
+        const hlX = lineX - hlPad;
+        const hlY = lineY - hlPad;
+        const hlW = lw + hlPad * 2;
+        const hlH = fontSize + hlPad * 2;
 
         ctx.fillStyle = backgroundColor;
         if (borderRadius > 0) {
@@ -140,6 +144,86 @@ export function renderTextOverlay(ctx, textConfig, canvasWidth, canvasHeight) {
     ctx.shadowBlur = 0;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Render a single caption chunk (a few words) with the CapCut-style highlight.
+ * activeWordIndex: which word in the chunk should use the highlightColor.
+ */
+export function renderCaptionChunk(ctx, chunk, config, canvasWidth, canvasHeight, activeWordIndex = -1) {
+  const {
+    fontSize, fontFamily, fontWeight, textColor, highlightColor,
+    strokeEnabled, strokeColor, strokeWidth,
+    shadowEnabled, shadowColor, shadowBlur, shadowOffsetY,
+    bgEnabled, bgColor, yPosition
+  } = config;
+
+  if (!chunk || !chunk.words || chunk.words.length === 0) return;
+
+  ctx.save();
+  
+  const posY = (yPosition / 100) * canvasHeight;
+  const fontStr = `${fontWeight} ${fontSize}px '${fontFamily}', sans-serif`;
+  ctx.font = fontStr;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+
+  // Measure each word and total width
+  const words = chunk.words;
+  const wordWidths = words.map(w => ctx.measureText(w.word).width);
+  const spaceWidth = ctx.measureText(' ').width;
+  const totalWidth = wordWidths.reduce((a, b) => a + b, 0) + (words.length - 1) * spaceWidth;
+
+  let startX = (canvasWidth - totalWidth) / 2;
+
+  // Background box for the whole chunk if enabled
+  if (bgEnabled) {
+    ctx.fillStyle = bgColor;
+    const padding = fontSize * 0.25;
+    const boxX = startX - padding;
+    const boxY = posY - (fontSize / 2) - padding;
+    const boxW = totalWidth + (padding * 2);
+    const boxH = fontSize + (padding * 2);
+    roundRect(ctx, boxX, boxY, boxW, boxH, 8);
+    ctx.fill();
+  }
+
+  // Draw words
+  let currentX = startX;
+  for (let i = 0; i < words.length; i++) {
+    const wordObj = words[i];
+    const ww = wordWidths[i];
+    const wx = currentX + ww / 2;
+    const isHighlighted = i === activeWordIndex;
+
+    // Shadow
+    if (shadowEnabled) {
+      ctx.shadowColor = shadowColor;
+      ctx.shadowBlur = shadowBlur;
+      ctx.shadowOffsetY = shadowOffsetY;
+    }
+
+    // Stroke
+    if (strokeEnabled && strokeWidth > 0) {
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = strokeWidth;
+      ctx.lineJoin = 'round';
+      ctx.strokeText(wordObj.word, wx, posY);
+    }
+
+    // Fill
+    ctx.fillStyle = isHighlighted ? highlightColor : textColor;
+    ctx.fillText(wordObj.word, wx, posY);
+
+    // Reset shadow
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    currentX += ww + spaceWidth;
   }
 
   ctx.restore();

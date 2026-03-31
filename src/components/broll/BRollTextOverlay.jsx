@@ -74,13 +74,13 @@ export default function BRollTextOverlay({ adId, textOverlay, disabled = false }
     <div className="broll-text-overlay">
       {/* Title Input — always visible */}
       <div className="overlay-title-row">
-        <input
-          type="text"
+        <textarea
           className="glass-input overlay-title-input"
           value={tc.text}
           onChange={(e) => update('text', e.target.value)}
-          placeholder="Text overlay title (optional)..."
+          placeholder="Text overlay title (optional)...\nUse Enter for new lines"
           disabled={disabled}
+          rows={2}
         />
         {hasText && (
           <button
@@ -240,15 +240,13 @@ export default function BRollTextOverlay({ adId, textOverlay, disabled = false }
                   <>
                     <div className="bg-style-toggle" style={{ marginBottom: '6px' }}>
                       <button
-                        className={`mode-btn ${(tc.bgStyle || 'highlight') === 'highlight' ? 'active' : ''}`}
+                        className={`bg-toggle-btn ${(tc.bgStyle || 'highlight') === 'highlight' ? 'active' : ''}`}
                         onClick={() => update('bgStyle', 'highlight')}
-                        style={{ flex: 1 }}
                         disabled={disabled}
                       >✨ Highlight</button>
                       <button
-                        className={`mode-btn ${tc.bgStyle === 'block' ? 'active' : ''}`}
+                        className={`bg-toggle-btn ${tc.bgStyle === 'block' ? 'active' : ''}`}
                         onClick={() => update('bgStyle', 'block')}
-                        style={{ flex: 1 }}
                         disabled={disabled}
                       >▬ Block</button>
                     </div>
