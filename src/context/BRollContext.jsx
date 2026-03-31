@@ -238,6 +238,19 @@ function reducer(state, action) {
         })),
       };
 
+    case 'APPLY_STYLES_GLOBALLY': {
+      const sourceAd = state.ads.find(a => a.id === action.payload);
+      if (!sourceAd) return state;
+      return {
+        ...state,
+        ads: state.ads.map(ad => ({
+          ...ad,
+          textOverlay: { ...sourceAd.textOverlay },
+          captionsConfig: { ...sourceAd.captionsConfig }
+        }))
+      };
+    }
+
     default:
       return state;
   }
@@ -263,6 +276,7 @@ export function BRollProvider({ children }) {
   const addLog = useCallback((msg) => dispatch({ type: 'ADD_LOG', payload: msg }), []);
   const clearLog = useCallback(() => dispatch({ type: 'CLEAR_LOG' }), []);
   const resetAds = useCallback(() => dispatch({ type: 'RESET_ADS' }), []);
+  const applyStylesGlobally = useCallback((adId) => dispatch({ type: 'APPLY_STYLES_GLOBALLY', payload: adId }), []);
 
   return (
     <BRollContext.Provider value={{
@@ -272,7 +286,7 @@ export function BRollProvider({ children }) {
       addHookSources, removeHookSource,
       setVslVideo, removeVslVideo,
       setAdCount, updateAdScript, updateAd, updateAdTextOverlay,
-      updateSettings, setGenerating, addLog, clearLog, resetAds,
+      updateSettings, setGenerating, addLog, clearLog, resetAds, applyStylesGlobally
     }}>
       {children}
     </BRollContext.Provider>

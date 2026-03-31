@@ -42,13 +42,27 @@ let fontLoaded = false;
 async function loadDefaultFont(ff) {
   if (fontLoaded) return;
   try {
-    try { await ff.createDir('/fonts'); } catch (e) {}
     const fontUrl = new URL(window.location.origin + '/fonts/Inter-Bold.ttf').href;
     const fontData = await fetchFile(fontUrl);
-    await ff.writeFile('Inter-Bold.ttf', fontData);
+    
+    // Rename to match the name in ASS Styles exactly
+    await ff.writeFile('Inter.ttf', fontData);
+    
+    // Create fonts.conf to tell libass exactly where to find the font
+    const fontsConf = `<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <dir>.</dir>
+  <match target="pattern">
+    <test name="family"><string>Inter</string></test>
+    <edit name="file" mode="assign"><string>Inter.ttf</string></edit>
+  </match>
+</fontconfig>`;
+    await ff.writeFile('fonts.conf', new TextEncoder().encode(fontsConf));
+    
     fontLoaded = true;
   } catch (e) {
-    console.warn("Failed to load default font for ASS subtitles from:", window.location.origin + '/fonts/Inter-Bold.ttf', e);
+    console.warn("Failed to load default font for ASS subtitles:", e);
   }
 }
 
