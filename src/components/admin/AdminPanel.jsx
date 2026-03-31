@@ -73,6 +73,14 @@ export default function AdminPanel() {
     else fetchLicenses();
   }
 
+  async function deleteLicense(id, key) {
+    const confirmed = window.confirm(`Permanently delete license ${key}?\n\nThis cannot be undone.`);
+    if (!confirmed) return;
+    const { error } = await supabase.from('licenses').delete().eq('id', id);
+    if (error) alert(error.message);
+    else fetchLicenses();
+  }
+
   if (loading) return <div style={{ color: 'white', padding: '2rem' }}>Loading Admin Panel...</div>;
 
   if (!session) {
@@ -152,7 +160,7 @@ export default function AdminPanel() {
                     </div>
                   ) : <span style={{ opacity: 0.5 }}>Unbound</span>}
                 </td>
-                <td style={{ padding: '1rem', display: 'flex', gap: '0.5rem' }}>
+                <td style={{ padding: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <button className="btn btn-sm btn-secondary" onClick={() => toggleStatus(lic.id, lic.is_active)}>
                     {lic.is_active ? 'Revoke' : 'Restore'}
                   </button>
@@ -161,6 +169,13 @@ export default function AdminPanel() {
                       Unbind Device
                     </button>
                   )}
+                  <button 
+                    className="btn btn-sm" 
+                    style={{ background: 'rgba(239,68,68,0.2)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}
+                    onClick={() => deleteLicense(lic.id, lic.license_key)}
+                  >
+                    🗑 Delete
+                  </button>
                 </td>
               </tr>
             ))}
