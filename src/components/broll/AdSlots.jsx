@@ -2,6 +2,8 @@ import React from 'react';
 import { useBRoll } from '../../context/BRollContext';
 import BRollTextOverlay from './BRollTextOverlay';
 import CaptionsSettings from './CaptionsSettings';
+import BRollPreview from './BRollPreview';
+import './AdSlots.css';
 
 import { ErrorBoundary } from '../ErrorBoundary';
 
@@ -54,49 +56,61 @@ export default function AdSlots() {
               <StatusBadge status={ad.status} progress={ad.progress} />
             </div>
 
-            {isVSL ? (
-              /* VSL mode — no script needed */
-              <div className="vsl-slot-info">
-                <div className="vsl-info-card">
-                  <span className="vsl-info-icon">🎙️</span>
-                  <div className="vsl-info-text">
-                    <span className="vsl-info-title">VSL + B-Roll Interleave</span>
-                    <span className="vsl-info-desc">
-                      {vslVideo
-                        ? `Person talking → B-rolls → Person → B-rolls → ... → Person (${Math.round(vslVideo.duration)}s total)`
-                        : 'Upload a VSL video to generate variations'
-                      }
-                    </span>
+            <div className="video-slot-content">
+              {/* Left Column: All Controls */}
+              <div className="video-slot-controls">
+                {isVSL ? (
+                  /* VSL mode — no script needed */
+                  <div className="vsl-slot-info">
+                    <div className="vsl-info-card">
+                      <span className="vsl-info-icon">🎙️</span>
+                      <div className="vsl-info-text">
+                        <span className="vsl-info-title">VSL + B-Roll Interleave</span>
+                        <span className="vsl-info-desc">
+                          {vslVideo
+                            ? `Person talking → B-rolls → Person → B-rolls → ... → Person (${Math.round(vslVideo.duration)}s total)`
+                            : 'Upload a VSL video to generate variations'
+                          }
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  /* B-Roll or Hook+B-Roll — script textarea */
+                  <textarea
+                    className="glass-input video-script-input"
+                    value={ad.script}
+                    onChange={(e) => updateAdScript(ad.id, e.target.value)}
+                    placeholder={`Write voiceover script for Ad #${index + 1}...`}
+                    rows={4}
+                    disabled={ad.status !== 'idle' && ad.status !== 'error'}
+                  />
+                )}
+
+                {/* Text Overlay — available in all modes */}
+                <BRollTextOverlay
+                  adId={ad.id}
+                  textOverlay={ad.textOverlay}
+                  disabled={ad.status !== 'idle' && ad.status !== 'error'}
+                />
+
+                {/* CapCut Auto-Captions — only relevant if there's voiceover (b-roll and hook-broll mode) */}
+                {!isVSL && (
+                  <CaptionsSettings
+                    adId={ad.id}
+                    captionsConfig={ad.captionsConfig}
+                    disabled={ad.status !== 'idle' && ad.status !== 'error'}
+                  />
+                )}
               </div>
-            ) : (
-              /* B-Roll or Hook+B-Roll — script textarea */
-              <textarea
-                className="glass-input video-script-input"
-                value={ad.script}
-                onChange={(e) => updateAdScript(ad.id, e.target.value)}
-                placeholder={`Write voiceover script for Ad #${index + 1}...`}
-                rows={4}
-                disabled={ad.status !== 'idle' && ad.status !== 'error'}
-              />
-            )}
 
-            {/* Text Overlay — available in all modes */}
-            <BRollTextOverlay
-              adId={ad.id}
-              textOverlay={ad.textOverlay}
-              disabled={ad.status !== 'idle' && ad.status !== 'error'}
-            />
-
-            {/* CapCut Auto-Captions — only relevant if there's voiceover (b-roll and hook-broll mode) */}
-            {!isVSL && (
-              <CaptionsSettings
-                adId={ad.id}
+              {/* Right Column: Visual Preview */}
+              <BRollPreview
+                textOverlay={ad.textOverlay}
                 captionsConfig={ad.captionsConfig}
-                disabled={ad.status !== 'idle' && ad.status !== 'error'}
               />
-            )}
+            </div>
+
             {ad.error && (
               <div className="ad-error">⚠️ {ad.error}</div>
             )}

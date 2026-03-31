@@ -6,7 +6,7 @@ import BRollSettings from './BRollSettings';
 import { generateSpeech, getAudioDuration } from '../../utils/elevenlabs';
 import { detectScenes, selectBRollSegments, selectHookClip, buildVSLTimeline } from '../../utils/scenes';
 import { assembleAd, assembleHookBRoll, assembleVSL } from '../../utils/assembler';
-import { downloadFile } from '../../utils/ffmpeg';
+import { downloadFile, saveFile, selectDirectory } from '../../utils/ffmpeg';
 import './BRollCreator.css';
 
 export default function BRollCreator() {
@@ -73,6 +73,17 @@ export default function BRollCreator() {
 
     addLog(`Using ${analyzedSources.length} analyzed source videos.`);
 
+    let selectedDir = null;
+    if (window.electronAPI?.isElectron) {
+      const dirResult = await selectDirectory();
+      if (!dirResult.success || !dirResult.path) {
+        addLog('❌ Directory selection cancelled.');
+        setGenerating(false);
+        return;
+      }
+      selectedDir = dirResult.path;
+    }
+
     for (let i = 0; i < adsToProcess.length; i++) {
       const ad = adsToProcess[i];
       const adNum = ads.indexOf(ad) + 1;
@@ -100,7 +111,13 @@ export default function BRollCreator() {
         const outputWidth = firstSource.width < firstSource.height ? 1080 : 1920;
         const outputHeight = firstSource.width < firstSource.height ? 1920 : 1080;
 
-        const videoData = await assembleAd(segments, voiceBlob, { outputWidth, outputHeight, textOverlay: ad.textOverlay }, (prog) => {
+        const videoData = await assembleAd(segments, voiceBlob, { 
+          outputWidth, 
+          outputHeight, 
+          textOverlay: ad.textOverlay,
+          captionsConfig: ad.captionsConfig,
+          captionTimings: wordTimings
+        }, (prog) => {
           updateAd(ad.id, { progress: 40 + Math.round(prog.percent * 0.55) });
         });
 
@@ -108,7 +125,12 @@ export default function BRollCreator() {
         const outputUrl = URL.createObjectURL(outputBlob);
         updateAd(ad.id, { status: 'done', progress: 100, outputUrl });
         addLog(`✅ Ad #${adNum} complete!`);
-        downloadFile(videoData, `ad_${adNum}.mp4`);
+        
+        if (selectedDir) {
+          await saveFile(videoData, `ad_${adNum}.mp4`, selectedDir);
+        } else {
+          downloadFile(videoData, `ad_${adNum}.mp4`);
+        }
       } catch (err) {
         console.error(`Ad #${adNum} failed:`, err);
         updateAd(ad.id, { status: 'error', error: err.message, progress: 0 });
@@ -146,6 +168,17 @@ export default function BRollCreator() {
 
     addLog(`Using ${analyzedSources.length} analyzed B-roll sources + ${hookVideos.length} hook videos.`);
 
+    let selectedDir = null;
+    if (window.electronAPI?.isElectron) {
+      const dirResult = await selectDirectory();
+      if (!dirResult.success || !dirResult.path) {
+        addLog('❌ Directory selection cancelled.');
+        setGenerating(false);
+        return;
+      }
+      selectedDir = dirResult.path;
+    }
+
     for (let i = 0; i < adsToProcess.length; i++) {
       const ad = adsToProcess[i];
       const adNum = ads.indexOf(ad) + 1;
@@ -182,7 +215,13 @@ export default function BRollCreator() {
         const outputWidth = firstSource.width < firstSource.height ? 1080 : 1920;
         const outputHeight = firstSource.width < firstSource.height ? 1920 : 1080;
 
-        const videoData = await assembleHookBRoll(hookClip, brollSegments, voiceBlob, { outputWidth, outputHeight, textOverlay: ad.textOverlay }, (prog) => {
+        const videoData = await assembleHookBRoll(hookClip, brollSegments, voiceBlob, { 
+          outputWidth, 
+          outputHeight, 
+          textOverlay: ad.textOverlay,
+          captionsConfig: ad.captionsConfig,
+          captionTimings: wordTimings
+        }, (prog) => {
           updateAd(ad.id, { progress: 40 + Math.round(prog.percent * 0.55) });
         });
 
@@ -190,7 +229,12 @@ export default function BRollCreator() {
         const outputUrl = URL.createObjectURL(outputBlob);
         updateAd(ad.id, { status: 'done', progress: 100, outputUrl });
         addLog(`✅ Ad #${adNum} complete!`);
-        downloadFile(videoData, `hook_broll_ad_${adNum}.mp4`);
+        
+        if (selectedDir) {
+          await saveFile(videoData, `hook_broll_ad_${adNum}.mp4`, selectedDir);
+        } else {
+          downloadFile(videoData, `hook_broll_ad_${adNum}.mp4`);
+        }
       } catch (err) {
         console.error(`Ad #${adNum} failed:`, err);
         updateAd(ad.id, { status: 'error', error: err.message, progress: 0 });
@@ -226,6 +270,17 @@ export default function BRollCreator() {
     }
 
     addLog(`Using ${analyzedSources.length} analyzed B-roll sources.`);
+
+    let selectedDir = null;
+    if (window.electronAPI?.isElectron) {
+      const dirResult = await selectDirectory();
+      if (!dirResult.success || !dirResult.path) {
+        addLog('❌ Directory selection cancelled.');
+        setGenerating(false);
+        return;
+      }
+      selectedDir = dirResult.path;
+    }
 
     for (let i = 0; i < ads.length; i++) {
       const ad = ads[i];
@@ -276,7 +331,13 @@ export default function BRollCreator() {
         const outputWidth = vslVideo.width < vslVideo.height ? 1080 : 1920;
         const outputHeight = vslVideo.width < vslVideo.height ? 1920 : 1080;
 
-        const videoData = await assembleVSL(vslVideo.file, brollSegments, timeline, { outputWidth, outputHeight, textOverlay: ad.textOverlay }, (prog) => {
+        const videoData = await assembleVSL(vslVideo.file, brollSegments, timeline, { 
+          outputWidth, 
+          outputHeight, 
+          textOverlay: ad.textOverlay,
+          captionsConfig: ad.captionsConfig,
+          captionTimings: [] // VSL usually doesn't have caption timings like AI voice, but we pass config
+        }, (prog) => {
           updateAd(ad.id, { progress: 35 + Math.round(prog.percent * 0.60) });
         });
 
@@ -284,7 +345,12 @@ export default function BRollCreator() {
         const outputUrl = URL.createObjectURL(outputBlob);
         updateAd(ad.id, { status: 'done', progress: 100, outputUrl });
         addLog(`✅ Variation #${varNum} complete!`);
-        downloadFile(videoData, `vsl_variation_${varNum}.mp4`);
+        
+        if (selectedDir) {
+          await saveFile(videoData, `vsl_variation_${varNum}.mp4`, selectedDir);
+        } else {
+          downloadFile(videoData, `vsl_variation_${varNum}.mp4`);
+        }
       } catch (err) {
         console.error(`Variation #${varNum} failed:`, err);
         updateAd(ad.id, { status: 'error', error: err.message, progress: 0 });

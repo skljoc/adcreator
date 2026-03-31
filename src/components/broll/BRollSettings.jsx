@@ -18,6 +18,8 @@ export default function BRollSettings() {
   const [showKey, setShowKey] = useState(false);
   const [loadingVoices, setLoadingVoices] = useState(false);
   const [voiceError, setVoiceError] = useState(null);
+  const [previewingVoiceId, setPreviewingVoiceId] = useState(null);
+  const [audio] = useState(new Audio());
 
   const isVSL = creationMode === 'vsl';
   const isHookBRoll = creationMode === 'hook-broll';
@@ -44,7 +46,27 @@ export default function BRollSettings() {
     if (settings.apiKey.trim() && !settings.voicesLoaded) {
       handleLoadVoices();
     }
-  }, []);
+  }, [settings.apiKey, settings.voicesLoaded, handleLoadVoices]);
+
+  const togglePreview = useCallback((voice) => {
+    if (previewingVoiceId === voice.id) {
+      audio.pause();
+      setPreviewingVoiceId(null);
+    } else {
+      audio.src = voice.previewUrl;
+      audio.play();
+      setPreviewingVoiceId(voice.id);
+      audio.onended = () => setPreviewingVoiceId(null);
+    }
+  }, [previewingVoiceId, audio]);
+
+  // Clean up audio on unmount
+  useEffect(() => {
+    return () => {
+      audio.pause();
+      audio.src = '';
+    };
+  }, [audio]);
 
   const totalScripts = ads.filter(a => a.script.trim()).length;
   const sourceCount = sourceVideos.length;
@@ -153,17 +175,32 @@ export default function BRollSettings() {
           {settings.voicesLoaded && settings.voices.length > 0 && (
             <div className="control-group" style={{ marginTop: '10px' }}>
               <label className="control-label">Voice</label>
-              <select
-                className="glass-input"
-                value={settings.voiceId}
-                onChange={(e) => updateSettings({ voiceId: e.target.value })}
-              >
-                {settings.voices.map(v => (
-                  <option key={v.id} value={v.id}>
-                    {v.name} ({v.category})
-                  </option>
-                ))}
-              </select>
+              <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                <select
+                  className="glass-input"
+                  value={settings.voiceId}
+                  onChange={(e) => updateSettings({ voiceId: e.target.value })}
+                  style={{ flex: 1 }}
+                >
+                  {settings.voices.map(v => (
+                    <option key={v.id} value={v.id}>
+                      {v.name} ({v.category})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className={`btn btn-sm ${previewingVoiceId === settings.voiceId ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => {
+                    const voice = settings.voices.find(v => v.id === settings.voiceId);
+                    if (voice) togglePreview(voice);
+                  }}
+                  title="Preview Voice"
+                  type="button"
+                  style={{ flexShrink: 0, minWidth: '80px' }}
+                >
+                  {previewingVoiceId === settings.voiceId ? '🔇 Stop' : '🔊 Play'}
+                </button>
+              </div>
             </div>
           )}
         </div>
