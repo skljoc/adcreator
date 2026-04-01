@@ -64,14 +64,18 @@ export default function AdSlots() {
         <ErrorBoundary>
         {ads.map((ad, index) => (
           <div key={ad.id} className={`video-slot glass-card ${ad.status !== 'idle' ? `video-status-${ad.status}` : ''}`}>
-            <div className="video-slot-header">
-              <span className="video-slot-number">
-                {isVSL ? `Variation #${index + 1}` : `Ad #${index + 1}`}
-              </span>
-              <StatusBadge status={ad.status} progress={ad.progress} />
-            </div>
+            {(() => {
+              const isBusy = !['idle', 'done', 'error'].includes(ad.status);
+              return (
+                <>
+                  <div className="video-slot-header">
+                    <span className="video-slot-number">
+                      {isVSL ? `Variation #${index + 1}` : `Ad #${index + 1}`}
+                    </span>
+                    <StatusBadge status={ad.status} progress={ad.progress} />
+                  </div>
 
-            <div className="video-slot-content">
+                  <div className="video-slot-content">
               {/* Left Column: All Controls */}
               <div className="video-slot-controls">
                 {isVSL ? (
@@ -98,7 +102,7 @@ export default function AdSlots() {
                     onChange={(e) => updateAdScript(ad.id, e.target.value)}
                     placeholder={`Write voiceover script for Ad #${index + 1}...`}
                     rows={4}
-                    disabled={ad.status !== 'idle' && ad.status !== 'error'}
+                    disabled={isBusy}
                   />
                 )}
 
@@ -114,7 +118,7 @@ export default function AdSlots() {
                         className="glass-input"
                         value={ad.voiceId || ''}
                         onChange={(e) => updateAd(ad.id, { voiceId: e.target.value })}
-                        disabled={ad.status !== 'idle' && ad.status !== 'error'}
+                        disabled={isBusy}
                       >
                         <option value="">Global — {voices.find(v => v.id === settings.voiceId)?.name || 'Default'}</option>
                         {voices.map(v => (
@@ -141,7 +145,7 @@ export default function AdSlots() {
                 <BRollTextOverlay
                   adId={ad.id}
                   textOverlay={ad.textOverlay}
-                  disabled={ad.status !== 'idle' && ad.status !== 'error'}
+                  disabled={isBusy}
                 />
 
                 {/* CapCut Auto-Captions — only relevant if there's voiceover (b-roll and hook-broll mode) */}
@@ -149,7 +153,7 @@ export default function AdSlots() {
                   <CaptionsSettings
                     adId={ad.id}
                     captionsConfig={ad.captionsConfig}
-                    disabled={ad.status !== 'idle' && ad.status !== 'error'}
+                    disabled={isBusy}
                   />
                 )}
               </div>
@@ -186,6 +190,11 @@ export default function AdSlots() {
                 >💾 Download</a>
               </div>
             )}
+            
+            {/* Close the returning wrapper */}
+            </>
+          );
+        })()}
           </div>
         ))}
         </ErrorBoundary>
