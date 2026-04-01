@@ -111,8 +111,18 @@ function compareFrames(frame1, frame2) {
 
 /**
  * Select random B-roll segments from analyzed source videos to fill a target duration.
+ * 
+ * Rules:
+ * - Each clip is max 3 seconds long
+ * - Clips are randomly selected from detected scenes
+ * - Total duration ALWAYS matches targetDuration exactly
+ * - Scenes are recycled if all have been used
+ * 
  * Returns array of { sourceVideoIndex, sourceVideoId, startTime, endTime, clipDuration }
  */
+const MAX_CLIP_DURATION = 3.0; // hard max — user requirement
+const MIN_CLIP_DURATION = 1.5; // minimum for a natural-looking cut
+
 export function selectBRollSegments(sourceVideos, targetDuration) {
   // Collect all available scenes across all source videos
   const allScenes = [];
@@ -133,45 +143,45 @@ export function selectBRollSegments(sourceVideos, targetDuration) {
     throw new Error('No usable scenes found in source videos');
   }
 
-  // Randomly select and trim scenes to fill the target duration
+  // Shuffle scenes for randomness
+  const shuffled = [...allScenes].sort(() => Math.random() - 0.5);
+
   const segments = [];
   let accumulatedDuration = 0;
-  const usedSceneIndices = new Set();
-  let attempts = 0;
-  const maxAttempts = allScenes.length * 3;
+  let scenePool = [...shuffled];
 
-  while (accumulatedDuration < targetDuration && attempts < maxAttempts) {
-    // Pick a random scene (prefer unused ones)
-    let sceneIdx;
-    if (usedSceneIndices.size < allScenes.length) {
-      // Find an unused scene
-      do {
-        sceneIdx = Math.floor(Math.random() * allScenes.length);
-      } while (usedSceneIndices.has(sceneIdx) && usedSceneIndices.size < allScenes.length);
-    } else {
-      // All used, pick any
-      sceneIdx = Math.floor(Math.random() * allScenes.length);
+  while (accumulatedDuration < targetDuration - 0.05) {
+    // Refill pool if exhausted (recycle with fresh shuffle)
+    if (scenePool.length === 0) {
+      scenePool = [...allScenes].sort(() => Math.random() - 0.5);
     }
-    usedSceneIndices.add(sceneIdx);
 
-    const scene = allScenes[sceneIdx];
+    // Pick the next scene from the pool
+    const scene = scenePool.shift();
     const remaining = targetDuration - accumulatedDuration;
 
-    // Determine clip duration — use full scene or trim if last clip
+    // Determine clip duration: max 3s, but last clip fills exactly what's remaining
     let clipDuration;
-    if (remaining <= scene.duration) {
+    if (remaining <= MAX_CLIP_DURATION) {
+      // Last clip — fill exactly the remaining time
       clipDuration = remaining;
     } else {
-      // Use a portion of the scene (2-5 seconds for dynamic B-rolls), or full if shorter
-      const maxClip = Math.min(scene.duration, 5);
-      const minClip = Math.min(2, scene.duration);
-      clipDuration = minClip + Math.random() * (maxClip - minClip);
-      clipDuration = Math.min(clipDuration, remaining);
+      // Random duration between MIN_CLIP and MAX_CLIP
+      const maxPossible = Math.min(MAX_CLIP_DURATION, scene.duration);
+      const minPossible = Math.min(MIN_CLIP_DURATION, maxPossible);
+      clipDuration = minPossible + Math.random() * (maxPossible - minPossible);
+      clipDuration = Math.min(clipDuration, remaining); // never exceed target
     }
 
-    // Random start within the scene
-    const maxStart = scene.startTime + scene.duration - clipDuration;
-    const clipStart = scene.startTime + Math.random() * Math.max(0, maxStart - scene.startTime);
+    // Ensure clipDuration doesn't exceed the scene's actual duration
+    clipDuration = Math.min(clipDuration, scene.duration);
+
+    // If the clip would be too tiny (< 0.3s), skip to next scene
+    if (clipDuration < 0.3) continue;
+
+    // Random start within the scene (ensuring clip fits within scene bounds)
+    const maxStartOffset = Math.max(0, scene.duration - clipDuration);
+    const clipStart = scene.startTime + Math.random() * maxStartOffset;
 
     segments.push({
       sourceVideoIndex: scene.sourceVideoIndex,
@@ -184,7 +194,6 @@ export function selectBRollSegments(sourceVideos, targetDuration) {
     });
 
     accumulatedDuration += clipDuration;
-    attempts++;
   }
 
   return segments;

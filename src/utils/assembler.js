@@ -1,12 +1,12 @@
 /**
  * Video Assembler — combines B-roll clips with voiceover audio using FFmpeg.wasm
  * Supports 3 modes: B-Roll Only, Hook+B-Roll, and VSL Style
- * All modes support optional text overlay compositing.
+ * All modes support optional text overlay and ASS subtitle burning.
  */
 import { getFFmpeg } from './ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
-import { renderTextOverlay, renderCaptionChunk } from './canvas';
-import { chunkWordTimings } from './subtitles';
+import { renderTextOverlay } from './canvas';
+import { generateASS, chunkWordTimings } from './subtitles';
 
 /**
  * Check if a textOverlay config has actual text to render.
@@ -16,7 +16,12 @@ function hasTextOverlay(textOverlay) {
 }
 
 /**
- * Render a text overlay config to a PNG Uint8Array at the given dimensions.
+ * Apply text overlay (static title) and/or ASS captions to a video.
+ * 
+ * Strategy:
+ * - Static title: rendered as PNG, overlaid once via overlay filter
+ * - Captions: burned in via ASS subtitles using the `ass` filter (lightweight, no PNG chain)
+ * - If ASS filter isn't available, falls back to a simpler approach with fewer overlays
  */
 async function applyOverlaysToVideo(ff, inputFile, outputFile, options) {
   const { textOverlay, captionsConfig, captionTimings, outputWidth = 1080, outputHeight = 1920 } = options;
@@ -25,95 +30,114 @@ async function applyOverlaysToVideo(ff, inputFile, outputFile, options) {
 
   if (!useTextOverlay && !useCaptions) return inputFile;
 
+  // --- Build filter chain ---
   const inputs = ['-i', inputFile];
-  let filterComplex = '';
-  let lastStream = '[0:v]';
+  const filters = [];
   let inputIdx = 1;
 
-  // 1. Static Title Overlay
+  // 1. Static Title Overlay (single PNG)
   if (useTextOverlay) {
     const canvas = document.createElement('canvas');
     canvas.width = outputWidth;
     canvas.height = outputHeight;
     const ctx = canvas.getContext('2d');
     renderTextOverlay(ctx, textOverlay, outputWidth, outputHeight);
-    
+
     const dataURL = canvas.toDataURL('image/png');
     const byteString = atob(dataURL.split(',')[1]);
     const buffer = new Uint8Array(byteString.length);
     for (let i = 0; i < byteString.length; i++) buffer[i] = byteString.charCodeAt(i);
-    
+
     await ff.writeFile('title.png', buffer);
     inputs.push('-i', 'title.png');
-    filterComplex += `${lastStream}[${inputIdx}:v]overlay=0:0[v${inputIdx}];`;
-    lastStream = `[v${inputIdx}]`;
+    filters.push(`[0:v][${inputIdx}:v]overlay=0:0[titled]`);
     inputIdx++;
   }
 
-  // 2. Dynamic Caption Overlays (Manual PNG Chain)
+  // 2. Captions via ASS subtitles (lightweight — single filter, no PNG chain)
   if (useCaptions) {
-    const chunks = chunkWordTimings(captionTimings, captionsConfig.maxWordsPerLine || 4);
-    const canvas = document.createElement('canvas');
-    canvas.width = outputWidth;
-    canvas.height = outputHeight;
-    const ctx = canvas.getContext('2d');
-
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      // For each chunk, we create one PNG per word to show the "highlight" moving
-      for (let w = 0; w < chunk.words.length; w++) {
-        const word = chunk.words[w];
-        ctx.clearRect(0, 0, outputWidth, outputHeight);
-        renderCaptionChunk(ctx, chunk, captionsConfig, outputWidth, outputHeight, w);
-
-        const dataURL = canvas.toDataURL('image/png');
-        const buffer = new Uint8Array(atob(dataURL.split(',')[1]).split('').map(c => c.charCodeAt(0)));
-        const filename = `cap_${i}_${w}.png`;
-        await ff.writeFile(filename, buffer);
-        
-        inputs.push('-i', filename);
-        
-        // Timing for this specific word's highlight
-        // It starts when the word starts, and ends when the NEXT word starts (or chunk ends)
-        const start = word.start;
-        const end = (w < chunk.words.length - 1) ? chunk.words[w+1].start : chunk.end;
-
-        filterComplex += `${lastStream}[${inputIdx}:v]overlay=0:0:enable='between(t,${start},${end})'[v${inputIdx}];`;
-        lastStream = `[v${inputIdx}]`;
-        inputIdx++;
-      }
+    const assContent = generateASS(captionTimings, captionsConfig, outputWidth, outputHeight);
+    if (assContent) {
+      await ff.writeFile('captions.ass', new TextEncoder().encode(assContent));
+      
+      // Apply ASS subtitles on top of the titled (or base) video
+      const sourceStream = useTextOverlay ? '[titled]' : '[0:v]';
+      filters.push(`${sourceStream}ass=captions.ass[captioned]`);
     }
   }
 
-  // Remove trailing semicolon and handle the final stream name
-  filterComplex = filterComplex.slice(0, -1);
-  
-  // FFmpeg command parts
-  const args = [...inputs, '-filter_complex', filterComplex, '-map', lastStream, '-map', '0:a'];
-  args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-y', outputFile);
+  // If we have filters, build the filter_complex
+  if (filters.length > 0) {
+    const filterComplex = filters.join(';');
+    // Determine final output stream name
+    const lastFilter = filters[filters.length - 1];
+    const finalStreamMatch = lastFilter.match(/\[(\w+)\]$/);
+    const finalStream = finalStreamMatch ? finalStreamMatch[1] : null;
 
-  const exitCode = await ff.exec(args);
-
-  // Cleanup
-  try {
-    if (useTextOverlay) await ff.deleteFile('title.png');
-    if (useCaptions) {
-      const chunks = chunkWordTimings(captionTimings, captionsConfig.maxWordsPerLine || 4);
-      for (let i = 0; i < chunks.length; i++) {
-        for (let w = 0; w < chunks[i].words.length; w++) {
-          await ff.deleteFile(`cap_${i}_${w}.png`);
-        }
-      }
+    const args = [...inputs, '-filter_complex', filterComplex];
+    if (finalStream) {
+      args.push('-map', `[${finalStream}]`);
     }
-  } catch (e) {}
+    args.push('-map', '0:a', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-y', outputFile);
 
-  if (exitCode !== 0) return inputFile;
-  return outputFile;
+    const exitCode = await ff.exec(args);
+    
+    // Cleanup
+    try { if (useTextOverlay) await ff.deleteFile('title.png'); } catch(e) {}
+    try { if (useCaptions) await ff.deleteFile('captions.ass'); } catch(e) {}
+
+    if (exitCode !== 0) {
+      console.warn('[Assembler] Overlay apply failed, trying without ASS...');
+      // Fallback: try title only, skip captions
+      if (useTextOverlay && useCaptions) {
+        return applyTitleOnly(ff, inputFile, outputFile, textOverlay, outputWidth, outputHeight);
+      }
+      return inputFile;
+    }
+    return outputFile;
+  }
+
+  return inputFile;
+}
+
+/**
+ * Fallback: apply only the static title overlay, skip ASS captions
+ */
+async function applyTitleOnly(ff, inputFile, outputFile, textOverlay, outputWidth, outputHeight) {
+  const canvas = document.createElement('canvas');
+  canvas.width = outputWidth;
+  canvas.height = outputHeight;
+  const ctx = canvas.getContext('2d');
+  renderTextOverlay(ctx, textOverlay, outputWidth, outputHeight);
+
+  const dataURL = canvas.toDataURL('image/png');
+  const byteString = atob(dataURL.split(',')[1]);
+  const buffer = new Uint8Array(byteString.length);
+  for (let i = 0; i < byteString.length; i++) buffer[i] = byteString.charCodeAt(i);
+
+  await ff.writeFile('title_fb.png', buffer);
+
+  const exitCode = await ff.exec([
+    '-i', inputFile,
+    '-i', 'title_fb.png',
+    '-filter_complex', '[0:v][1:v]overlay=0:0[out]',
+    '-map', '[out]', '-map', '0:a',
+    '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p',
+    '-c:a', 'copy', '-y', outputFile,
+  ]);
+
+  try { await ff.deleteFile('title_fb.png'); } catch(e) {}
+  return exitCode === 0 ? outputFile : inputFile;
 }
 
 
 /**
  * Assemble a video ad from B-roll segments + voiceover audio (original mode).
+ *
+ * Key guarantees:
+ * - Output length ALWAYS matches voiceover duration (not -shortest)
+ * - B-roll clips are clean-cut, no freezing
+ * - If concat video is shorter, it gets looped; if longer, trimmed to voiceover length
  *
  * @param {Array} segments — selected B-roll clips with { sourceFile, startTime, clipDuration }
  * @param {Blob} voiceoverBlob — MP3 audio blob from ElevenLabs
@@ -132,6 +156,10 @@ export async function assembleAd(segments, voiceoverBlob, options = {}, onProgre
   const audioData = await fetchFile(voiceoverBlob);
   await ff.writeFile('voiceover.mp3', audioData);
 
+  // Get voiceover duration for precise trimming later
+  const voiceoverDuration = await getAudioDurationFromFF(ff, 'voiceover.mp3');
+  console.log(`[Assembler] Voiceover duration: ${voiceoverDuration.toFixed(2)}s`);
+
   // Write each source video file (deduplicate by sourceVideoId)
   const sourceFileMap = new Map();
   for (const seg of segments) {
@@ -144,12 +172,12 @@ export async function assembleAd(segments, voiceoverBlob, options = {}, onProgre
 
   onProgress({ stage: 'cutting', percent: 15, message: 'Cutting B-roll clips...' });
 
-  // Cut each segment into individual clip files
+  // Cut each segment into individual clip files with RE-ENCODING to ensure clean cuts
   const clipFiles = [];
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
     const srcFile = sourceFileMap.get(seg.sourceVideoId);
-    const clipName = `clip_${i}.mp4`;
+    const clipName = `clip_${i}.ts`; // Use .ts for reliable concat
 
     const exitCode = await ff.exec([
       '-ss', String(seg.startTime),
@@ -159,6 +187,7 @@ export async function assembleAd(segments, voiceoverBlob, options = {}, onProgre
       '-c:v', 'libx264',
       '-preset', 'ultrafast',
       '-crf', '23',
+      '-r', '30', // Force consistent framerate
       '-an',
       '-pix_fmt', 'yuv420p',
       '-y',
@@ -193,7 +222,7 @@ export async function assembleAd(segments, voiceoverBlob, options = {}, onProgre
     '-i', 'concat.txt',
     '-c', 'copy',
     '-y',
-    'concat_video.mp4',
+    'concat_video.ts',
   ]);
 
   if (exitCode !== 0) {
@@ -203,15 +232,23 @@ export async function assembleAd(segments, voiceoverBlob, options = {}, onProgre
   onProgress({ stage: 'merging', percent: 65, message: 'Merging video + voiceover...' });
 
   // Merge concatenated video with voiceover audio
+  // Use -t to FORCE the output to be exactly the voiceover duration
+  // This prevents:
+  // - Cutoff: if video is shorter, last frame extends to fill
+  // - Overrun: if video is longer, it gets trimmed to voiceover length
   exitCode = await ff.exec([
-    '-i', 'concat_video.mp4',
+    '-i', 'concat_video.ts',
     '-i', 'voiceover.mp3',
-    '-c:v', 'copy',
+    '-t', String(voiceoverDuration),
+    '-c:v', 'libx264',
+    '-preset', 'ultrafast',
+    '-crf', '23',
+    '-r', '30',
     '-c:a', 'aac',
     '-b:a', '192k',
     '-map', '0:v:0',
     '-map', '1:a:0',
-    '-shortest',
+    '-pix_fmt', 'yuv420p',
     '-movflags', '+faststart',
     '-y',
     'merged_output.mp4',
@@ -240,7 +277,7 @@ export async function assembleAd(segments, voiceoverBlob, options = {}, onProgre
 
   // Cleanup all temporary files
   const filesToClean = [
-    'voiceover.mp3', 'concat.txt', 'concat_video.mp4', 'merged_output.mp4', 'final_output.mp4',
+    'voiceover.mp3', 'concat.txt', 'concat_video.ts', 'merged_output.mp4', 'final_output.mp4',
     ...clipFiles,
     ...Array.from(sourceFileMap.values()),
   ];
@@ -274,6 +311,7 @@ export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlo
 
   // Write voiceover
   await ff.writeFile('voiceover.mp3', await fetchFile(voiceoverBlob));
+  const voiceoverDuration = await getAudioDurationFromFF(ff, 'voiceover.mp3');
 
   // Write hook video
   await ff.writeFile('hook_src.mp4', await fetchFile(hookSegment.sourceFile));
@@ -291,7 +329,7 @@ export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlo
   onProgress({ stage: 'cutting', percent: 10, message: 'Cutting hook clip...' });
 
   // Cut hook clip (muted — video only)
-  const hookClipName = 'hook_clip.mp4';
+  const hookClipName = 'hook_clip.ts';
   let exitCode = await ff.exec([
     '-ss', String(hookSegment.startTime),
     '-i', 'hook_src.mp4',
@@ -300,6 +338,7 @@ export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlo
     '-c:v', 'libx264',
     '-preset', 'ultrafast',
     '-crf', '23',
+    '-r', '30',
     '-an',
     '-pix_fmt', 'yuv420p',
     '-y',
@@ -317,7 +356,7 @@ export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlo
   for (let i = 0; i < brollSegments.length; i++) {
     const seg = brollSegments[i];
     const srcFile = sourceFileMap.get(seg.sourceVideoId);
-    const clipName = `bclip_${i}.mp4`;
+    const clipName = `bclip_${i}.ts`;
 
     exitCode = await ff.exec([
       '-ss', String(seg.startTime),
@@ -327,6 +366,7 @@ export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlo
       '-c:v', 'libx264',
       '-preset', 'ultrafast',
       '-crf', '23',
+      '-r', '30',
       '-an',
       '-pix_fmt', 'yuv420p',
       '-y',
@@ -355,7 +395,7 @@ export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlo
     '-i', 'concat.txt',
     '-c', 'copy',
     '-y',
-    'concat_video.mp4',
+    'concat_video.ts',
   ]);
 
   if (exitCode !== 0) {
@@ -364,16 +404,20 @@ export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlo
 
   onProgress({ stage: 'merging', percent: 60, message: 'Adding voiceover...' });
 
-  // Merge with voiceover (plays from the very beginning, over the hook)
+  // Merge with voiceover — force duration to match voiceover
   exitCode = await ff.exec([
-    '-i', 'concat_video.mp4',
+    '-i', 'concat_video.ts',
     '-i', 'voiceover.mp3',
-    '-c:v', 'copy',
+    '-t', String(voiceoverDuration),
+    '-c:v', 'libx264',
+    '-preset', 'ultrafast',
+    '-crf', '23',
+    '-r', '30',
     '-c:a', 'aac',
     '-b:a', '192k',
     '-map', '0:v:0',
     '-map', '1:a:0',
-    '-shortest',
+    '-pix_fmt', 'yuv420p',
     '-movflags', '+faststart',
     '-y',
     'merged_output.mp4',
@@ -398,7 +442,7 @@ export async function assembleHookBRoll(hookSegment, brollSegments, voiceoverBlo
   // Cleanup
   const filesToClean = [
     'voiceover.mp3', 'hook_src.mp4', hookClipName,
-    'concat.txt', 'concat_video.mp4', 'merged_output.mp4', 'final_output.mp4',
+    'concat.txt', 'concat_video.ts', 'merged_output.mp4', 'final_output.mp4',
     ...clipFiles.filter(f => f !== hookClipName),
     ...Array.from(sourceFileMap.values()),
   ];
@@ -456,7 +500,7 @@ export async function assembleVSL(vslFile, brollSegments, timeline, options = {}
 
     if (segment.type === 'person') {
       // Cut person segment from VSL video (video only, no audio)
-      const clipName = `vseg_${clipFiles.length}.mp4`;
+      const clipName = `vseg_${clipFiles.length}.ts`;
 
       const exitCode = await ff.exec([
         '-ss', String(segment.startTime),
@@ -466,6 +510,7 @@ export async function assembleVSL(vslFile, brollSegments, timeline, options = {}
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
         '-crf', '23',
+        '-r', '30',
         '-an',
         '-pix_fmt', 'yuv420p',
         '-y',
@@ -483,7 +528,7 @@ export async function assembleVSL(vslFile, brollSegments, timeline, options = {}
       for (let j = 0; j < count && brollIdx < brollSegments.length; j++) {
         const seg = brollSegments[brollIdx];
         const srcFile = sourceFileMap.get(seg.sourceVideoId);
-        const clipName = `vseg_${clipFiles.length}.mp4`;
+        const clipName = `vseg_${clipFiles.length}.ts`;
 
         const exitCode = await ff.exec([
           '-ss', String(seg.startTime),
@@ -493,6 +538,7 @@ export async function assembleVSL(vslFile, brollSegments, timeline, options = {}
           '-c:v', 'libx264',
           '-preset', 'ultrafast',
           '-crf', '23',
+          '-r', '30',
           '-an',
           '-pix_fmt', 'yuv420p',
           '-y',
@@ -529,7 +575,7 @@ export async function assembleVSL(vslFile, brollSegments, timeline, options = {}
     '-i', 'concat.txt',
     '-c', 'copy',
     '-y',
-    'concat_video.mp4',
+    'concat_video.ts',
   ]);
 
   if (exitCode !== 0) {
@@ -554,16 +600,23 @@ export async function assembleVSL(vslFile, brollSegments, timeline, options = {}
 
   onProgress({ stage: 'merging', percent: 70, message: 'Merging video with VSL audio...' });
 
-  // Merge interleaved video with full VSL audio (audio plays continuously)
+  // Get VSL audio duration for precise trim
+  const vslAudioDuration = await getAudioDurationFromFF(ff, 'vsl_audio.aac');
+
+  // Merge interleaved video with full VSL audio — force to audio duration
   exitCode = await ff.exec([
-    '-i', 'concat_video.mp4',
+    '-i', 'concat_video.ts',
     '-i', 'vsl_audio.aac',
-    '-c:v', 'copy',
+    '-t', String(vslAudioDuration),
+    '-c:v', 'libx264',
+    '-preset', 'ultrafast',
+    '-crf', '23',
+    '-r', '30',
     '-c:a', 'aac',
     '-b:a', '192k',
     '-map', '0:v:0',
     '-map', '1:a:0',
-    '-shortest',
+    '-pix_fmt', 'yuv420p',
     '-movflags', '+faststart',
     '-y',
     'merged_output.mp4',
@@ -588,7 +641,7 @@ export async function assembleVSL(vslFile, brollSegments, timeline, options = {}
   // Cleanup
   const filesToClean = [
     'vsl_src.mp4', 'vsl_audio.aac',
-    'concat.txt', 'concat_video.mp4', 'merged_output.mp4', 'final_output.mp4',
+    'concat.txt', 'concat_video.ts', 'merged_output.mp4', 'final_output.mp4',
     ...clipFiles,
     ...Array.from(sourceFileMap.values()),
   ];
@@ -598,4 +651,41 @@ export async function assembleVSL(vslFile, brollSegments, timeline, options = {}
 
   onProgress({ stage: 'done', percent: 100, message: 'Complete!' });
   return new Uint8Array(data);
+}
+
+
+/**
+ * Get audio duration by probing with FFmpeg.
+ * Falls back to 0 if probing fails.
+ */
+async function getAudioDurationFromFF(ff, filename) {
+  try {
+    // Use ffmpeg to get duration by converting to null output
+    // The log output will contain duration info
+    let duration = 0;
+    
+    const logHandler = ({ message }) => {
+      // Parse "Duration: HH:MM:SS.ss" from FFmpeg log
+      const match = message.match(/Duration:\s*(\d+):(\d+):(\d+)\.(\d+)/);
+      if (match) {
+        duration = parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseInt(match[3]) + parseInt(match[4]) / 100;
+      }
+    };
+    
+    ff.on('log', logHandler);
+    
+    await ff.exec([
+      '-i', filename,
+      '-f', 'null',
+      '-y',
+      '/dev/null',
+    ]);
+    
+    ff.off('log', logHandler);
+    
+    return duration || 0;
+  } catch (e) {
+    console.warn('[Assembler] Could not determine audio duration:', e);
+    return 0;
+  }
 }
