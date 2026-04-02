@@ -5,8 +5,8 @@
  */
 import { getFFmpeg } from './ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
-import { renderTextOverlay } from './canvas';
-import { generateASS, chunkWordTimings } from './subtitles';
+import { renderTextOverlay, renderCaptionChunk } from './canvas';
+import { chunkWordTimings } from './subtitles';
 
 /**
  * Check if a textOverlay config has actual text to render.
@@ -16,12 +16,15 @@ function hasTextOverlay(textOverlay) {
 }
 
 /**
- * Apply text overlay (static title) and/or ASS captions to a video.
+ * Apply text overlay (static title) and/or dynamic Captions to a video.
  * 
  * Strategy:
- * - Static title: rendered as PNG, overlaid once via overlay filter
- * - Captions: burned in via ASS subtitles using the `ass` filter (lightweight, no PNG chain)
- * - If ASS filter isn't available, falls back to a simpler approach with fewer overlays
+ * - Static title: rendered as a single PNG, merged via overlay.
+ * - Captions: FFmpeg WASM doesn't support libass, so we can't use 'ass' filter.
+ *   Chaining hundreds of overlay filters crashes WASM memory.
+ *   Fix: We use the 'concat' demuxer to turn a sequence of transparent PNGs
+ *   (one for each word highlight + blank gaps) into a single transparent video stream,
+ *   then apply ONE single overlay filter over the main video.
  */
 async function applyOverlaysToVideo(ff, inputFile, outputFile, options) {
   const { textOverlay, captionsConfig, captionTimings, outputWidth = 1080, outputHeight = 1920 } = options;
@@ -30,12 +33,11 @@ async function applyOverlaysToVideo(ff, inputFile, outputFile, options) {
 
   if (!useTextOverlay && !useCaptions) return inputFile;
 
-  // --- Build filter chain ---
   const inputs = ['-i', inputFile];
   const filters = [];
   let inputIdx = 1;
 
-  // 1. Static Title Overlay (single PNG)
+  // 1. Static Title Overlay
   if (useTextOverlay) {
     const canvas = document.createElement('canvas');
     canvas.width = outputWidth;
@@ -47,87 +49,122 @@ async function applyOverlaysToVideo(ff, inputFile, outputFile, options) {
     const byteString = atob(dataURL.split(',')[1]);
     const buffer = new Uint8Array(byteString.length);
     for (let i = 0; i < byteString.length; i++) buffer[i] = byteString.charCodeAt(i);
-
+    
     await ff.writeFile('title.png', buffer);
+    
     inputs.push('-i', 'title.png');
     filters.push(`[0:v][${inputIdx}:v]overlay=0:0[titled]`);
     inputIdx++;
   }
 
-  // 2. Captions via ASS subtitles (lightweight — single filter, no PNG chain)
+  // 2. Dynamics Captions via Concat Demuxer
   if (useCaptions) {
-    const assContent = generateASS(captionTimings, captionsConfig, outputWidth, outputHeight);
-    if (assContent) {
-      await ff.writeFile('captions.ass', new TextEncoder().encode(assContent));
-      
-      // Apply ASS subtitles on top of the titled (or base) video
-      const sourceStream = useTextOverlay ? '[titled]' : '[0:v]';
-      filters.push(`${sourceStream}ass=captions.ass[captioned]`);
+    const canvas = document.createElement('canvas');
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
+    const ctx = canvas.getContext('2d');
+
+    // Create a 1x1 transparent PNG for gaps
+    ctx.clearRect(0, 0, outputWidth, outputHeight);
+    const blankDataURL = canvas.toDataURL('image/png');
+    
+    const blankByteStr = atob(blankDataURL.split(',')[1]);
+    const blankBuffer = new Uint8Array(blankByteStr.length);
+    for (let i = 0; i < blankByteStr.length; i++) blankBuffer[i] = blankByteStr.charCodeAt(i);
+    
+    await ff.writeFile('blank.png', blankBuffer);
+
+    let concatTxt = '';
+    let currentTime = 0;
+    let fileIndex = 0;
+
+    const chunks = chunkWordTimings(captionTimings, captionsConfig.maxWordsPerLine || 4);
+
+    for (let c = 0; c < chunks.length; c++) {
+      const chunk = chunks[c];
+
+      // Gap before chunk
+      if (chunk.start > currentTime) {
+        const gap = chunk.start - currentTime;
+        concatTxt += `file 'blank.png'\nduration ${gap.toFixed(3)}\n`;
+        currentTime = chunk.start;
+      }
+
+      for (let w = 0; w < chunk.words.length; w++) {
+        const word = chunk.words[w];
+        
+        ctx.clearRect(0, 0, outputWidth, outputHeight);
+        renderCaptionChunk(ctx, chunk, captionsConfig, outputWidth, outputHeight, w);
+
+        const dataURL = canvas.toDataURL('image/png');
+        const capByteStr = atob(dataURL.split(',')[1]);
+        const buffer = new Uint8Array(capByteStr.length);
+        for (let i = 0; i < capByteStr.length; i++) buffer[i] = capByteStr.charCodeAt(i);
+        
+        const filename = `cap_${fileIndex++}.png`;
+        await ff.writeFile(filename, buffer);
+
+        // Determine duration of this highlight
+        const nextTime = (w < chunk.words.length - 1) ? chunk.words[w+1].start : chunk.end;
+        const duration = Math.max(0.01, nextTime - currentTime);
+
+        concatTxt += `file '${filename}'\nduration ${duration.toFixed(3)}\n`;
+        currentTime = nextTime;
+      }
     }
+
+    // Add exactly one very long blank frame at the end to prevent the concat from looping/freezing early
+    concatTxt += `file 'blank.png'\nduration 999.0\n`;
+
+    await ff.writeFile('captions.txt', new TextEncoder().encode(concatTxt));
+    
+    // Add concat inputs
+    inputs.push('-f', 'concat', '-safe', '0', '-i', 'captions.txt');
+    
+    // Determine the base stream to overlay on
+    const sourceStream = useTextOverlay ? '[titled]' : '[0:v]';
+    filters.push(`${sourceStream}[${inputIdx}:v]overlay=0:0[captioned]`);
+    inputIdx++;
   }
 
-  // If we have filters, build the filter_complex
+  // Setup execution arguments
+  const args = [...inputs];
+  
   if (filters.length > 0) {
     const filterComplex = filters.join(';');
-    // Determine final output stream name
     const lastFilter = filters[filters.length - 1];
     const finalStreamMatch = lastFilter.match(/\[(\w+)\]$/);
     const finalStream = finalStreamMatch ? finalStreamMatch[1] : null;
 
-    const args = [...inputs, '-filter_complex', filterComplex];
-    if (finalStream) {
-      args.push('-map', `[${finalStream}]`);
-    }
-    args.push('-map', '0:a', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-y', outputFile);
-
-    const exitCode = await ff.exec(args);
-    
-    // Cleanup
-    try { if (useTextOverlay) await ff.deleteFile('title.png'); } catch(e) {}
-    try { if (useCaptions) await ff.deleteFile('captions.ass'); } catch(e) {}
-
-    if (exitCode !== 0) {
-      console.warn('[Assembler] Overlay apply failed, trying without ASS...');
-      // Fallback: try title only, skip captions
-      if (useTextOverlay && useCaptions) {
-        return applyTitleOnly(ff, inputFile, outputFile, textOverlay, outputWidth, outputHeight);
-      }
-      return inputFile;
-    }
-    return outputFile;
+    args.push('-filter_complex', filterComplex);
+    if (finalStream) args.push('-map', `[${finalStream}]`);
+    args.push('-map', '0:a');
+  } else {
+    // Fallback if no filters
+    args.push('-c', 'copy');
   }
 
-  return inputFile;
-}
+  args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-y', outputFile);
 
-/**
- * Fallback: apply only the static title overlay, skip ASS captions
- */
-async function applyTitleOnly(ff, inputFile, outputFile, textOverlay, outputWidth, outputHeight) {
-  const canvas = document.createElement('canvas');
-  canvas.width = outputWidth;
-  canvas.height = outputHeight;
-  const ctx = canvas.getContext('2d');
-  renderTextOverlay(ctx, textOverlay, outputWidth, outputHeight);
+  const exitCode = await ff.exec(args);
+  
+  // Cleanup
+  try { if (useTextOverlay) await ff.deleteFile('title.png'); } catch(e) {}
+  try {
+    if (useCaptions) {
+      await ff.deleteFile('captions.txt');
+      await ff.deleteFile('blank.png');
+      const chunks = chunkWordTimings(captionTimings, captionsConfig.maxWordsPerLine || 4);
+      let count = chunks.reduce((acc, chunk) => acc + chunk.words.length, 0);
+      for (let i = 0; i < count; i++) await ff.deleteFile(`cap_${i}.png`);
+    }
+  } catch(e) {}
 
-  const dataURL = canvas.toDataURL('image/png');
-  const byteString = atob(dataURL.split(',')[1]);
-  const buffer = new Uint8Array(byteString.length);
-  for (let i = 0; i < byteString.length; i++) buffer[i] = byteString.charCodeAt(i);
-
-  await ff.writeFile('title_fb.png', buffer);
-
-  const exitCode = await ff.exec([
-    '-i', inputFile,
-    '-i', 'title_fb.png',
-    '-filter_complex', '[0:v][1:v]overlay=0:0[out]',
-    '-map', '[out]', '-map', '0:a',
-    '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p',
-    '-c:a', 'copy', '-y', outputFile,
-  ]);
-
-  try { await ff.deleteFile('title_fb.png'); } catch(e) {}
-  return exitCode === 0 ? outputFile : inputFile;
+  if (exitCode !== 0) {
+    console.warn('[Assembler] Overlay apply failed, falling back to original.');
+    return inputFile;
+  }
+  return outputFile;
 }
 
 
