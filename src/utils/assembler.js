@@ -123,7 +123,9 @@ async function applyOverlaysToVideo(ff, inputFile, outputFile, options) {
     
     // Determine the base stream to overlay on
     const sourceStream = useTextOverlay ? '[titled]' : '[0:v]';
-    filters.push(`${sourceStream}[${inputIdx}:v]overlay=0:0[captioned]`);
+    // Use shortest=1 to ensure the output ends when the main video ends.
+    // Otherwise the 999.0 second blank frame will cause FFMPEG to encode 999 seconds of video!
+    filters.push(`${sourceStream}[${inputIdx}:v]overlay=0:0:shortest=1[captioned]`);
     inputIdx++;
   }
 
