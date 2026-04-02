@@ -123,9 +123,8 @@ async function applyOverlaysToVideo(ff, inputFile, outputFile, options) {
     
     // Determine the base stream to overlay on
     const sourceStream = useTextOverlay ? '[titled]' : '[0:v]';
-    // Use shortest=1 to ensure the output ends when the main video ends.
-    // Otherwise the 999.0 second blank frame will cause FFMPEG to encode 999 seconds of video!
-    filters.push(`${sourceStream}[${inputIdx}:v]overlay=0:0:shortest=1[captioned]`);
+    // Remove shortest=1 from overlay filter to avoid WASM deadlock bugs with concat demuxer
+    filters.push(`${sourceStream}[${inputIdx}:v]overlay=0:0[captioned]`);
     inputIdx++;
   }
 
@@ -146,7 +145,9 @@ async function applyOverlaysToVideo(ff, inputFile, outputFile, options) {
     args.push('-c', 'copy');
   }
 
-  args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-y', outputFile);
+  // Use output-level -shortest to gracefully terminate encoding exactly when the shortest mapped stream (audio) ends,
+  // preventing it from encoding the 999.0 second blank pad without deadlocking the WASM instance.
+  args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-shortest', '-y', outputFile);
 
   const exitCode = await ff.exec(args);
   
