@@ -16,7 +16,7 @@ export default function BRollCreator() {
     ads, settings,
     generating, setGenerating,
     updateAd, addLog, clearLog, setScenes,
-    generationLog, importCampaign,
+    generationLog, importCampaign, resetAllStyles,
   } = useBRoll();
 
   const isVSL = creationMode === 'vsl';
@@ -505,6 +505,9 @@ export default function BRollCreator() {
           </div>
           
           <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn btn-secondary btn-xs" onClick={resetAllStyles} title="Reset Title and Caption styling to default across ALL ads">
+              🔄 Reset Styling
+            </button>
             <button className="btn btn-secondary btn-xs" onClick={handleExportCampaign} title="Export Campaign">
               📥 Export Settings
             </button>

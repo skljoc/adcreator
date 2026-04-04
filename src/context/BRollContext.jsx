@@ -23,6 +23,7 @@ export const DEFAULT_TEXT_OVERLAY = {
   stroke: { enabled: false, color: '#000000', width: 2 },
   opacity: 1,
   rotation: 0,
+  duration: 3,
 };
 
 export const DEFAULT_CAPTIONS_CONFIG = {
@@ -240,6 +241,16 @@ function reducer(state, action) {
         })),
       };
 
+    case 'RESET_ALL_STYLES':
+      return {
+        ...state,
+        ads: state.ads.map(ad => ({
+          ...ad,
+          textOverlay: { ...DEFAULT_TEXT_OVERLAY },
+          captionsConfig: { ...DEFAULT_CAPTIONS_CONFIG }
+        }))
+      };
+
     case 'APPLY_STYLES_GLOBALLY': {
       const sourceAd = state.ads.find(a => a.id === action.payload);
       if (!sourceAd) return state;
@@ -308,6 +319,7 @@ export function BRollProvider({ children }) {
   const resetAds = useCallback(() => dispatch({ type: 'RESET_ADS' }), []);
   const applyStylesGlobally = useCallback((adId) => dispatch({ type: 'APPLY_STYLES_GLOBALLY', payload: adId }), []);
   const importCampaign = useCallback((data) => dispatch({ type: 'IMPORT_CAMPAIGN', payload: data }), []);
+  const resetAllStyles = useCallback(() => dispatch({ type: 'RESET_ALL_STYLES' }), []);
 
   return (
     <BRollContext.Provider value={{
@@ -318,7 +330,7 @@ export function BRollProvider({ children }) {
       setVslVideo, removeVslVideo,
       setAdCount, updateAdScript, updateAd, updateAdTextOverlay,
       updateSettings, setGenerating, addLog, clearLog, resetAds, applyStylesGlobally,
-      importCampaign
+      importCampaign, resetAllStyles
     }}>
       {children}
     </BRollContext.Provider>

@@ -53,7 +53,8 @@ async function applyOverlaysToVideo(ff, inputFile, outputFile, options) {
     await ff.writeFile('title.png', buffer);
     
     inputs.push('-i', 'title.png');
-    filters.push(`[0:v][${inputIdx}:v]overlay=0:0[titled]`);
+    const duration = textOverlay.duration || 3;
+    filters.push(`[0:v][${inputIdx}:v]overlay=0:0:enable='between(t,0,${duration})'[titled]`);
     inputIdx++;
   }
 

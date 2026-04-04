@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { useBRoll } from '../../context/BRollContext';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useBRoll, DEFAULT_TEXT_OVERLAY } from '../../context/BRollContext';
 
 const FALLBACK_TEXT_OVERLAY = {
   text: '',
@@ -54,8 +54,39 @@ function MiniSection({ title, defaultOpen = false, children }) {
 }
 
 export default function BRollTextOverlay({ adId, textOverlay, disabled = false }) {
-  const { updateAdTextOverlay } = useBRoll();
+  const { updateAdTextOverlay, updateAd } = useBRoll();
   const [expanded, setExpanded] = useState(false);
+  const [templates, setTemplates] = useState([]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('vae-title-templates')) || [];
+      setTemplates(saved);
+    } catch (e) { console.error('Failed to parse title templates:', e); }
+  }, []);
+
+  const handleReset = () => {
+    updateAd(adId, { textOverlay: { ...DEFAULT_TEXT_OVERLAY } });
+  };
+
+  const handleSaveTemplate = () => {
+    const name = window.prompt("Enter a name for this title template:");
+    if (!name) return;
+    const newTemplate = { name, config: textOverlay };
+    const updated = [...templates, newTemplate];
+    setTemplates(updated);
+    localStorage.setItem('vae-title-templates', JSON.stringify(updated));
+  };
+
+  const handleLoadTemplate = (e) => {
+    const tmplName = e.target.value;
+    if (!tmplName) return;
+    const tmpl = templates.find(t => t.name === tmplName);
+    if (tmpl) {
+      updateAd(adId, { textOverlay: tmpl.config });
+    }
+    e.target.value = '';
+  };
 
   const update = useCallback((field, value) => {
     updateAdTextOverlay(adId, { [field]: value });
@@ -472,6 +503,37 @@ export default function BRollTextOverlay({ adId, textOverlay, disabled = false }
               </div>
             </div>
           </MiniSection>
+
+          {/* Timing */}
+          <MiniSection title="Timing" defaultOpen={true}>
+            <div className="overlay-row">
+              <div className="overlay-col">
+                <label className="control-label">
+                  Duration <span className="value">{tc.duration || 3}s</span>
+                </label>
+                <input type="range" min="1" max="20" step="1" value={tc.duration || 3}
+                  onChange={(e) => update('duration', Number(e.target.value))}
+                  disabled={disabled}
+                />
+              </div>
+            </div>
+          </MiniSection>
+
+          {/* Bottom Actions */}
+          <div className="overlay-actions" style={{ display: 'flex', gap: '8px', padding: '12px', flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <button className="btn btn-secondary btn-sm" onClick={handleReset} disabled={disabled}>
+              ↺ Reset Style
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={handleSaveTemplate} disabled={disabled}>
+              💾 Save as Template
+            </button>
+            <select className="glass-input" onChange={handleLoadTemplate} disabled={disabled || templates.length === 0} style={{ padding: '4px 8px', fontSize: '0.8rem', flex: 1, minWidth: '130px' }}>
+              <option value="">{templates.length === 0 ? 'No Templates' : 'Load Template...'}</option>
+              {templates.map(t => (
+                <option key={t.name} value={t.name}>{t.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
     </div>

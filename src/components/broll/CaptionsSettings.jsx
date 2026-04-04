@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useBRoll } from '../../context/BRollContext';
 import { DEFAULT_CAPTIONS_CONFIG } from '../../context/BRollContext';
 
@@ -95,6 +95,37 @@ export default function CaptionsSettings({ adId, captionsConfig, disabled = fals
   const { updateAd, applyStylesGlobally } = useBRoll();
   const config = captionsConfig || DEFAULT_CAPTIONS_CONFIG;
   const [expanded, setExpanded] = useState(false);
+  const [templates, setTemplates] = useState([]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('vae-caption-templates')) || [];
+      setTemplates(saved);
+    } catch (e) { console.error('Failed to parse caption templates:', e); }
+  }, []);
+
+  const handleReset = () => {
+    updateAd(adId, { captionsConfig: { ...DEFAULT_CAPTIONS_CONFIG } });
+  };
+
+  const handleSaveTemplate = () => {
+    const name = window.prompt("Enter a name for this caption template:");
+    if (!name) return;
+    const newTemplate = { name, config };
+    const updated = [...templates, newTemplate];
+    setTemplates(updated);
+    localStorage.setItem('vae-caption-templates', JSON.stringify(updated));
+  };
+
+  const handleLoadTemplate = (e) => {
+    const tmplName = e.target.value;
+    if (!tmplName) return;
+    const tmpl = templates.find(t => t.name === tmplName);
+    if (tmpl) {
+      updateAd(adId, { captionsConfig: tmpl.config });
+    }
+    e.target.value = '';
+  };
 
   const update = useCallback((field, value) => {
     updateAd(adId, {
@@ -327,6 +358,22 @@ export default function CaptionsSettings({ adId, captionsConfig, disabled = fals
               </div>
             </div>
           )}
+
+          <div className="captions-divider" style={{ margin: '16px 0 12px 0' }} />
+          <div className="overlay-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', paddingBottom: '4px' }}>
+            <button className="btn btn-secondary btn-sm" onClick={handleReset} disabled={disabled}>
+              ↺ Reset Style
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={handleSaveTemplate} disabled={disabled}>
+              💾 Save Custom Template
+            </button>
+            <select className="glass-input" onChange={handleLoadTemplate} disabled={disabled || templates.length === 0} style={{ padding: '4px 8px', fontSize: '0.8rem', flex: 1, minWidth: '130px' }}>
+              <option value="">{templates.length === 0 ? 'No Custom Templates' : 'Load Custom Template...'}</option>
+              {templates.map(t => (
+                <option key={t.name} value={t.name}>{t.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
     </div>
