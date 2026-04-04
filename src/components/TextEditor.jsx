@@ -121,6 +121,23 @@ export default function TextEditor() {
             rows={3}
           />
         </div>
+
+        {textConfig.text.trim() && (
+          <div className="control-group animate-slide-up" style={{ marginTop: '12px' }}>
+            <label className="control-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Title Duration</span>
+              <span className="value">{textConfig.duration || 3}s</span>
+            </label>
+            <input
+              type="range"
+              min="1"
+              max="20"
+              step="1"
+              value={textConfig.duration || 3}
+              onChange={(e) => updateField('duration', Number(e.target.value))}
+            />
+          </div>
+        )}
       </CollapsibleSection>
 
       {/* Typography */}

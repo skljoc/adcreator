@@ -23,6 +23,7 @@ const DEFAULT_TEXT_CONFIG = {
   stroke: { enabled: false, color: '#000000', width: 2 },
   opacity: 1,
   rotation: 0,
+  duration: 3,
   useGlobal: true,
 };
 
