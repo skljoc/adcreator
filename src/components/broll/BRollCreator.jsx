@@ -144,7 +144,7 @@ export default function BRollCreator() {
 
         updateAd(ad.id, { status: 'analyzing', progress: 30 });
         addLog(`Selecting B-roll segments for ${duration.toFixed(1)}s duration...`);
-        const segments = selectBRollSegments(analyzedSources, duration, settings.shuffleScenes !== false);
+        const segments = selectBRollSegments(analyzedSources, duration, settings.shuffleScenes !== false, i);
         addLog(`✅ Selected ${segments.length} B-roll clips`);
 
         updateAd(ad.id, { status: 'assembling', progress: 40 });
@@ -240,7 +240,7 @@ export default function BRollCreator() {
         const brollDuration = Math.max(0, duration - hookClip.clipDuration);
         updateAd(ad.id, { status: 'analyzing', progress: 30 });
         addLog(`Selecting B-roll segments for ${brollDuration.toFixed(1)}s remaining...`);
-        const brollSegments = selectBRollSegments(analyzedSources, brollDuration, settings.shuffleScenes !== false);
+        const brollSegments = selectBRollSegments(analyzedSources, brollDuration, settings.shuffleScenes !== false, i);
         addLog(`✅ Selected ${brollSegments.length} B-roll clips`);
 
         // Assemble
@@ -338,7 +338,7 @@ export default function BRollCreator() {
         for (const group of brollGroups) {
           const count = group.brollCount || 2;
           const clipDurationEach = group.duration / count;
-          const clips = selectBRollSegments(analyzedSources, group.duration, settings.shuffleScenes !== false);
+          const clips = selectBRollSegments(analyzedSources, group.duration, settings.shuffleScenes !== false, i);
 
           // Adjust clip durations to match the group evenly
           let remaining = group.duration;

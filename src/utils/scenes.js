@@ -123,11 +123,11 @@ function compareFrames(frame1, frame2) {
 const MAX_CLIP_DURATION = 3.0; // hard max — user requirement
 const MIN_CLIP_DURATION = 1.5; // minimum for a natural-looking cut
 
-export function selectBRollSegments(sourceVideos, targetDuration, shuffleScenes = true) {
+export function selectBRollSegments(sourceVideos, targetDuration, shuffleScenes = true, adIndex = 0) {
   if (!shuffleScenes) {
     const segments = [];
     let accumulatedDuration = 0;
-    let videoIndex = 0;
+    let videoIndex = adIndex % sourceVideos.length;
 
     while (accumulatedDuration < targetDuration - 0.05) {
       if (videoIndex >= sourceVideos.length) {
