@@ -113,17 +113,33 @@ export default function BRollTextOverlay({ adId, textOverlay, disabled = false }
           disabled={disabled}
           rows={2}
         />
-        {hasText && (
-          <button
-            className={`btn btn-sm ${expanded ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setExpanded(e => !e)}
-            title="Text style options"
-            disabled={disabled}
-          >
-            ⚙️
-          </button>
-        )}
+        <div className="overlay-title-actions">
+          {hasText && (
+            <button
+              className={`btn btn-sm ${expanded ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setExpanded(e => !e)}
+              title="Text style options"
+              disabled={disabled}
+            >
+              ⚙️
+            </button>
+          )}
+        </div>
       </div>
+
+      {hasText && (
+        <div className="overlay-duration-row animate-slide-up" style={{ marginTop: '8px', marginBottom: '8px' }}>
+          <label className="control-label" style={{ fontSize: '0.75rem', marginBottom: '4px', display: 'flex', justifyContent: 'space-between' }}>
+            <span>Title Duration</span>
+            <span className="value">{tc.duration || 3}s</span>
+          </label>
+          <input type="range" min="1" max="20" step="1" value={tc.duration || 3}
+            onChange={(e) => update('duration', Number(e.target.value))}
+            disabled={disabled}
+            className="duration-slider"
+          />
+        </div>
+      )}
 
       {/* Expanded options — only when text is entered and gear clicked */}
       {hasText && expanded && (
@@ -500,21 +516,6 @@ export default function BRollTextOverlay({ adId, textOverlay, disabled = false }
                     disabled={disabled}
                   >{p.label}</button>
                 ))}
-              </div>
-            </div>
-          </MiniSection>
-
-          {/* Timing */}
-          <MiniSection title="Timing" defaultOpen={true}>
-            <div className="overlay-row">
-              <div className="overlay-col">
-                <label className="control-label">
-                  Duration <span className="value">{tc.duration || 3}s</span>
-                </label>
-                <input type="range" min="1" max="20" step="1" value={tc.duration || 3}
-                  onChange={(e) => update('duration', Number(e.target.value))}
-                  disabled={disabled}
-                />
               </div>
             </div>
           </MiniSection>
