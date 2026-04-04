@@ -65,6 +65,7 @@ const initialState = {
     voices: [],
     voicesLoaded: false,
     hookDuration: 3, // seconds, configurable
+    shuffleScenes: true, // Shuffle scenes vs play sequentially
   },
   generating: false,
   generationLog: [],

@@ -123,7 +123,37 @@ function compareFrames(frame1, frame2) {
 const MAX_CLIP_DURATION = 3.0; // hard max — user requirement
 const MIN_CLIP_DURATION = 1.5; // minimum for a natural-looking cut
 
-export function selectBRollSegments(sourceVideos, targetDuration) {
+export function selectBRollSegments(sourceVideos, targetDuration, shuffleScenes = true) {
+  if (!shuffleScenes) {
+    const segments = [];
+    let accumulatedDuration = 0;
+    let videoIndex = 0;
+
+    while (accumulatedDuration < targetDuration - 0.05) {
+      if (videoIndex >= sourceVideos.length) {
+        videoIndex = 0;
+      }
+      
+      const video = sourceVideos[videoIndex];
+      const remaining = targetDuration - accumulatedDuration;
+      const clipDuration = Math.min(remaining, video.duration);
+      
+      segments.push({
+        sourceVideoIndex: videoIndex,
+        sourceVideoId: video.id,
+        sourceFile: video.file,
+        sourceUrl: video.url,
+        startTime: 0,
+        endTime: clipDuration,
+        clipDuration,
+      });
+      
+      accumulatedDuration += clipDuration;
+      videoIndex++;
+    }
+    return segments;
+  }
+
   // Collect all available scenes across all source videos
   const allScenes = [];
   sourceVideos.forEach((video, videoIndex) => {

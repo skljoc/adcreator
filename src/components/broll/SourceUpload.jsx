@@ -194,6 +194,7 @@ export default function SourceUpload() {
     addSources, sourceVideos, removeSource,
     addHookSources, hookVideos, removeHookSource,
     setVslVideo, vslVideo, removeVslVideo,
+    settings, updateSettings,
   } = useBRoll();
 
   const { processFiles: processBRoll, isProcessing: brollProcessing } = useVideoProcessor(addSources);
@@ -268,6 +269,21 @@ export default function SourceUpload() {
           label="Source Videos"
           badgeClass="badge-accent"
         />
+
+        {sourceVideos.length > 0 && (
+          <div className="broll-options" style={{ marginTop: '12px' }}>
+            <label className="checkbox-wrap" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={settings.shuffleScenes !== false} 
+                onChange={(e) => updateSettings({ shuffleScenes: e.target.checked })} 
+              />
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                Shuffle scenes and cut randomly (Uncheck to play videos sequentially as-is)
+              </span>
+            </label>
+          </div>
+        )}
       </div>
     </div>
   );

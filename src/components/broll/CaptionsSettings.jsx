@@ -272,6 +272,18 @@ export default function CaptionsSettings({ adId, captionsConfig, disabled = fals
             </label>
           </div>
 
+          {config.bgEnabled && (
+            <div className="captions-row">
+              <div className="captions-field">
+                <label>BG Box Color</label>
+                <div className="color-input-wrap">
+                  <input type="color" value={config.bgColor || '#000000'} onChange={(e) => update('bgColor', e.target.value)} disabled={disabled} />
+                  <span>{config.bgColor || '#000000'}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {config.strokeEnabled && (
             <div className="captions-row">
               <div className="captions-field">
