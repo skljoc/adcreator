@@ -253,6 +253,34 @@ function reducer(state, action) {
       };
     }
 
+    case 'IMPORT_CAMPAIGN': {
+      const data = action.payload;
+      return {
+        ...state,
+        creationMode: data.creationMode || state.creationMode,
+        settings: {
+           ...state.settings,
+           ...(data.settings || {})
+        },
+        ads: (data.ads || []).map(ad => ({
+           id: crypto.randomUUID(),
+           index: ad.index || 0,
+           script: ad.script || '',
+           voiceId: ad.voiceId || '',
+           textOverlay: ad.textOverlay || { ...DEFAULT_TEXT_OVERLAY },
+           captionsConfig: ad.captionsConfig || { ...DEFAULT_CAPTIONS_CONFIG },
+           captionTimings: [],
+           voiceoverBlob: null,
+           voiceoverUrl: null,
+           voiceoverDuration: 0,
+           status: 'idle',
+           progress: 0,
+           error: null,
+           outputUrl: null,
+        }))
+      };
+    }
+
     default:
       return state;
   }
@@ -279,6 +307,7 @@ export function BRollProvider({ children }) {
   const clearLog = useCallback(() => dispatch({ type: 'CLEAR_LOG' }), []);
   const resetAds = useCallback(() => dispatch({ type: 'RESET_ADS' }), []);
   const applyStylesGlobally = useCallback((adId) => dispatch({ type: 'APPLY_STYLES_GLOBALLY', payload: adId }), []);
+  const importCampaign = useCallback((data) => dispatch({ type: 'IMPORT_CAMPAIGN', payload: data }), []);
 
   return (
     <BRollContext.Provider value={{
@@ -288,7 +317,8 @@ export function BRollProvider({ children }) {
       addHookSources, removeHookSource,
       setVslVideo, removeVslVideo,
       setAdCount, updateAdScript, updateAd, updateAdTextOverlay,
-      updateSettings, setGenerating, addLog, clearLog, resetAds, applyStylesGlobally
+      updateSettings, setGenerating, addLog, clearLog, resetAds, applyStylesGlobally,
+      importCampaign
     }}>
       {children}
     </BRollContext.Provider>

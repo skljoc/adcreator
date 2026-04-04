@@ -16,7 +16,7 @@ export default function BRollCreator() {
     ads, settings,
     generating, setGenerating,
     updateAd, addLog, clearLog, setScenes,
-    generationLog,
+    generationLog, importCampaign,
   } = useBRoll();
 
   const isVSL = creationMode === 'vsl';
@@ -428,6 +428,54 @@ export default function BRollCreator() {
     return sourceVideos.length;
   };
 
+  const handleExportCampaign = useCallback(() => {
+    const exportData = {
+      version: 1,
+      creationMode,
+      settings: {
+        voiceId: settings.voiceId,
+        hookDuration: settings.hookDuration,
+        shuffleScenes: settings.shuffleScenes
+      },
+      ads: ads.map(a => ({
+        index: a.index,
+        script: a.script,
+        voiceId: a.voiceId,
+        textOverlay: a.textOverlay,
+        captionsConfig: a.captionsConfig
+      }))
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `video-ads-campaign-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    addLog('✅ Campaign settings exported successfully.');
+  }, [creationMode, settings, ads, addLog]);
+
+  const handleImportCampaign = useCallback((e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data.ads) {
+          importCampaign(data);
+          addLog('✅ Campaign settings imported successfully.');
+        } else {
+          addLog('❌ Invalid campaign file format.');
+        }
+      } catch (err) {
+        addLog('❌ Failed to parse campaign file.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = null; // reset
+  }, [importCampaign, addLog]);
+
   return (
     <div className="broll-creator">
       {/* Left Panel — Source Videos */}
@@ -443,16 +491,28 @@ export default function BRollCreator() {
 
       {/* Center — Ad Slots */}
       <section className="panel panel-center glass-panel animate-slide-up" style={{ animationDelay: '50ms' }}>
-        <div className="panel-header">
-          <h2 className="panel-title">
-            {isVSL ? 'VSL Variations' : 'Video Ads'}
-          </h2>
-          <span className="badge badge-accent">
-            {isVSL
-              ? `${ads.length} variation${ads.length !== 1 ? 's' : ''}`
-              : `${totalScripts}/${ads.length} ready`
-            }
-          </span>
+        <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <h2 className="panel-title">
+              {isVSL ? 'VSL Variations' : 'Video Ads'}
+            </h2>
+            <span className="badge badge-accent">
+              {isVSL
+                ? `${ads.length} variation${ads.length !== 1 ? 's' : ''}`
+                : `${totalScripts}/${ads.length} ready`
+              }
+            </span>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn btn-secondary btn-xs" onClick={handleExportCampaign} title="Export Campaign">
+              📥 Export Settings
+            </button>
+            <label className="btn btn-secondary btn-xs" style={{ margin: 0, cursor: 'pointer' }} title="Import Campaign">
+              📤 Import Settings
+              <input type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportCampaign} />
+            </label>
+          </div>
         </div>
         <div className="panel-body">
           <AdSlots />
